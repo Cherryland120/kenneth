@@ -1,0 +1,1 @@
+{"name":"Igbo Speech Translator","description":"A speech translation application using the pre-trained abasseyfresh/whisper-large-v3-igbo model to transcribe and translate Igbo audio.","requestFramePermissions":["microphone"],"majorCapabilities":["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]}

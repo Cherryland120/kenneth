@@ -107,7 +107,7 @@ export default function App() {
       const igboTranscription = sttData.text || '';
 
       if (!igboTranscription) {
-        setTranscription(sttData.error || 'No transcription received.');
+        setError(sttData.error || 'No speech detected. Please try recording again.');
         setIsLoading(false);
         setLoadingStep('');
         return;
@@ -126,7 +126,9 @@ export default function App() {
       setLoadingStep('Translating to English...');
 
       if (!translationBackendUrl) {
-        setTranscription('⚠️ Translation backend URL not configured. Please add it in Settings.');
+        // Still show the Igbo transcription — just skip translation
+        setTranscription(igboTranscription);
+        setError('⚠️ Translation backend URL not configured. Add it in Settings to get English output. Showing Igbo transcription only.');
         setIsLoading(false);
         setLoadingStep('');
         return;
@@ -158,7 +160,16 @@ export default function App() {
 
     } catch (err: any) {
       console.error(err);
-      setError('Backend Error: ' + err.message);
+      const msg = err.message || 'Unknown error';
+      if (msg.includes('Speech-to-text')) {
+        setError('❌ Speech-to-text backend is offline or unreachable. Check your Railway service.');
+      } else if (msg.includes('Text-to-text')) {
+        // Still show the Igbo text we managed to get
+        if (igboText) setTranscription(igboText);
+        setError('❌ Translation backend unreachable. Showing Igbo transcription only.');
+      } else {
+        setError('❌ Error: ' + msg);
+      }
     }
 
     setIsLoading(false);

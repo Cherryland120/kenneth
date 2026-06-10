@@ -1,0 +1,10 @@
+__pycache__/
+.venv/
+venv/
+*.pyc
+.git/
+.DS_Store
+
+# Ignore local whl files and dummy audio
+*.whl
+dummy.wav

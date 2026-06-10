@@ -15,10 +15,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Path to the local fine-tuned model
-model_path = "./igbo_mt_finetuned"
+# Load from HF Hub by default; can be overridden via MODEL_PATH env var
+model_path = os.getenv("MODEL_PATH", "Cherryland120/igbo-mt-finetuned")
 
-print("Loading MarianMT model...")
+print(f"Loading MarianMT model from: {model_path}...")
 try:
     tokenizer = MarianTokenizer.from_pretrained(model_path)
     model = MarianMTModel.from_pretrained(model_path)

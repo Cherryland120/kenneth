@@ -7,3 +7,6 @@ venv/
 
 # Ignore huge training checkpoints since they aren't needed for inference
 igbo_mt_finetuned/checkpoint-*/
+
+# Ignore the entire local model folder - model is now loaded from HF Hub at runtime
+igbo_mt_finetuned/

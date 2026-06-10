@@ -1,9 +1,19 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from transformers import MarianMTModel, MarianTokenizer
 import os
 
 app = FastAPI()
+
+# Allow cross-origin requests from the Vercel frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Path to the local fine-tuned model
 model_path = "./igbo_mt_finetuned"

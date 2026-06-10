@@ -1,6 +1,6 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from transformers import pipeline, AutoTokenizer
+from transformers import pipeline
 import tempfile
 import os
 
@@ -26,11 +26,8 @@ if test_mode:
             return {"text": "Nke a bụ ule ederede! (This is a test transcription from the mock backend)"}
     pipe = DummyPipe()
 else:
-    # Use use_fast=False to load the slow Python tokenizer.
-    # The fast (Rust) tokenizer for this model uses a newer tokenizer.json format
-    # that is incompatible with the tokenizers version pinned by transformers==4.41.2.
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, use_fast=False)
-    pipe = pipeline("automatic-speech-recognition", model=MODEL_NAME, tokenizer=tokenizer)
+    # transformers==4.44.2 supports tokenizers>=0.20 which is required by this model
+    pipe = pipeline("automatic-speech-recognition", model=MODEL_NAME)
 print("Model loaded successfully.")
 
 @app.post("/api/transcribe")

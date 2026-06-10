@@ -1,6 +1,6 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from transformers import pipeline
+from transformers import pipeline, AutoTokenizer
 import tempfile
 import os
 
@@ -15,6 +15,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+MODEL_NAME = "abasseyfresh/whisper-large-v3-igbo"
+
 print("Loading Whisper model...")
 test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
 if test_mode:
@@ -24,8 +26,11 @@ if test_mode:
             return {"text": "Nke a bụ ule ederede! (This is a test transcription from the mock backend)"}
     pipe = DummyPipe()
 else:
-    # Load the specific huggingface model requested
-    pipe = pipeline("automatic-speech-recognition", model="abasseyfresh/whisper-large-v3-igbo")
+    # Use use_fast=False to load the slow Python tokenizer.
+    # The fast (Rust) tokenizer for this model uses a newer tokenizer.json format
+    # that is incompatible with the tokenizers version pinned by transformers==4.41.2.
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, use_fast=False)
+    pipe = pipeline("automatic-speech-recognition", model=MODEL_NAME, tokenizer=tokenizer)
 print("Model loaded successfully.")
 
 @app.post("/api/transcribe")

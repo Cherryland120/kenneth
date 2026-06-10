@@ -7,7 +7,9 @@ export default function App() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [transcription, setTranscription] = useState<string>('');
+  const [igboText, setIgboText] = useState<string>(''); // Intermediate Igbo text when chaining
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingStep, setLoadingStep] = useState<string>(''); // Shows which step is in progress
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<'transcribe' | 'translate'>('transcribe');
   const [copied, setCopied] = useState(false);
@@ -15,14 +17,24 @@ export default function App() {
   const [backendUrl, setBackendUrl] = useState<string>(
     localStorage.getItem('backendUrl') || 'https://curvy-jobs-see.loca.lt'
   );
+  const [translationBackendUrl, setTranslationBackendUrl] = useState<string>(
+    localStorage.getItem('translationBackendUrl') || ''
+  );
   const [showSettings, setShowSettings] = useState(false);
   const [tempUrl, setTempUrl] = useState(backendUrl);
+  const [tempTranslationUrl, setTempTranslationUrl] = useState(translationBackendUrl);
 
   const handleSaveSettings = () => {
     let finalUrl = tempUrl.trim().replace(/\/$/, '');
     if (finalUrl && !finalUrl.startsWith('http')) finalUrl = 'https://' + finalUrl;
     setBackendUrl(finalUrl);
     localStorage.setItem('backendUrl', finalUrl);
+
+    let finalTranslationUrl = tempTranslationUrl.trim().replace(/\/$/, '');
+    if (finalTranslationUrl && !finalTranslationUrl.startsWith('http')) finalTranslationUrl = 'https://' + finalTranslationUrl;
+    setTranslationBackendUrl(finalTranslationUrl);
+    localStorage.setItem('translationBackendUrl', finalTranslationUrl);
+
     setShowSettings(false);
   };
 
@@ -73,55 +85,94 @@ export default function App() {
     if (!audioBlob) return;
     setIsLoading(true);
     setError(null);
+    setIgboText('');
+    setTranscription('');
 
     try {
       const formData = new FormData();
       formData.append('file', audioBlob);
-      formData.append('audio', audioBlob); // Added because the Colab script expects 'audio', while local expects 'file'
+      formData.append('audio', audioBlob);
 
-      // Attempt to communicate with the configured backend
-      const res = await fetch(`${backendUrl}/api/${mode}`, {
+      // --- Step 1: Always transcribe Igbo audio → Igbo text via speech-to-text ---
+      setLoadingStep('Transcribing Igbo audio...');
+      const sttRes = await fetch(`${backendUrl}/api/transcribe`, {
         method: 'POST',
         body: formData,
-        headers: {
-          'Bypass-Tunnel-Reminder': 'true' // Bypasses the localtunnel warning page
-        }
+        headers: { 'Bypass-Tunnel-Reminder': 'true' }
       });
-      
-      if (!res.ok) {
-        throw new Error('Backend not reachable');
-      }
-      
-      const data = await res.json();
-      const outputText = data.text || data.error || 'No output received.';
-      setTranscription(outputText);
 
-      // Read the English translation out loud!
-      if (data.text) {
-        // Cancel any currently playing speech to avoid overlap
+      if (!sttRes.ok) throw new Error('Speech-to-text backend not reachable');
+
+      const sttData = await sttRes.json();
+      const igboTranscription = sttData.text || '';
+
+      if (!igboTranscription) {
+        setTranscription(sttData.error || 'No transcription received.');
+        setIsLoading(false);
+        setLoadingStep('');
+        return;
+      }
+
+      // If mode is just transcribe, we are done
+      if (mode === 'transcribe') {
+        setTranscription(igboTranscription);
+        setIsLoading(false);
+        setLoadingStep('');
+        return;
+      }
+
+      // --- Step 2 (translate mode): Pass Igbo text → English via text-to-text ---
+      setIgboText(igboTranscription); // Show intermediate Igbo text
+      setLoadingStep('Translating to English...');
+
+      if (!translationBackendUrl) {
+        setTranscription('⚠️ Translation backend URL not configured. Please add it in Settings.');
+        setIsLoading(false);
+        setLoadingStep('');
+        return;
+      }
+
+      const mtRes = await fetch(`${translationBackendUrl}/api/translate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Bypass-Tunnel-Reminder': 'true'
+        },
+        body: JSON.stringify({ text: igboTranscription })
+      });
+
+      if (!mtRes.ok) throw new Error('Text-to-text backend not reachable');
+
+      const mtData = await mtRes.json();
+      const englishTranslation = mtData.translated_text || mtData.error || 'No translation received.';
+      setTranscription(englishTranslation);
+
+      // Speak the English translation aloud
+      if (mtData.translated_text) {
         window.speechSynthesis.cancel();
-        
-        const utterance = new SpeechSynthesisUtterance(data.text);
-        utterance.lang = 'en-US'; // Tell the browser to speak with an English accent
-        utterance.rate = 0.9;     // Speak slightly slower for clarity
+        const utterance = new SpeechSynthesisUtterance(mtData.translated_text);
+        utterance.lang = 'en-US';
+        utterance.rate = 0.9;
         window.speechSynthesis.speak(utterance);
       }
+
     } catch (err: any) {
       console.error(err);
-      setTranscription("Backend Error: " + err.message + "\n\n(Make sure the Colab cell is still running and the URL hasn't changed!)");
-      setIsLoading(false);
-      return;
+      setError('Backend Error: ' + err.message);
     }
 
     setIsLoading(false);
+    setLoadingStep('');
   };
 
   const reset = () => {
     setAudioBlob(null);
     setAudioUrl(null);
     setTranscription('');
+    setIgboText('');
     setError(null);
     setCopied(false);
+    setLoadingStep('');
   };
 
   const copyToClipboard = () => {
@@ -311,14 +362,32 @@ export default function App() {
               </span>
             </div>
             
-            <div className="flex-1 mt-6 overflow-y-auto">
+            <div className="flex-1 mt-6 overflow-y-auto space-y-4">
+              {/* Show intermediate Igbo text when in translate mode and chaining */}
+              {mode === 'translate' && igboText && (
+                <div className="bg-orange-600/50 rounded-2xl p-4 border border-orange-400/30">
+                  <p className="text-[10px] font-bold text-orange-200 uppercase tracking-widest mb-2">Igbo (Transcribed)</p>
+                  <p className="text-sm text-orange-100 leading-relaxed">{igboText}</p>
+                </div>
+              )}
+
               {transcription ? (
-                <p className="text-xl md:text-2xl font-medium leading-relaxed whitespace-pre-wrap">
-                  {transcription}
-                </p>
+                <div>
+                  {mode === 'translate' && igboText && (
+                    <p className="text-[10px] font-bold text-orange-200 uppercase tracking-widest mb-2">English (Translated)</p>
+                  )}
+                  <p className="text-xl md:text-2xl font-medium leading-relaxed whitespace-pre-wrap">
+                    {transcription}
+                  </p>
+                </div>
               ) : (
-                <div className="flex items-center justify-center h-full opacity-50 italic font-medium">
-                  {isLoading ? 'Listening to audio patterns...' : 'Translation will appear here...'}
+                <div className="flex flex-col items-center justify-center h-full opacity-50 italic font-medium gap-2">
+                  {isLoading ? (
+                    <>
+                      <div className="w-6 h-6 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                      <span>{loadingStep || 'Processing...'}</span>
+                    </>
+                  ) : 'Output will appear here...'}
                 </div>
               )}
             </div>
@@ -377,17 +446,32 @@ export default function App() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-1.5">
-                    API Endpoint URL
+                    🎙️ Speech-to-Text URL
                   </label>
                   <input 
                     type="text"
                     value={tempUrl}
                     onChange={(e) => setTempUrl(e.target.value)}
-                    placeholder="https://your-backend.up.railway.app"
+                    placeholder="https://speech-to-text.up.railway.app"
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-all"
                   />
                   <p className="text-xs text-slate-500 mt-2">
-                    Paste your Railway or Colab LocalTunnel URL here. This overrides the default backend.
+                    Your Whisper (speech-to-text) Railway service URL.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                    📝 Text-to-Text (Translation) URL
+                  </label>
+                  <input 
+                    type="text"
+                    value={tempTranslationUrl}
+                    onChange={(e) => setTempTranslationUrl(e.target.value)}
+                    placeholder="https://text-to-text.up.railway.app"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-all"
+                  />
+                  <p className="text-xs text-slate-500 mt-2">
+                    Your MarianMT (Igbo → English translation) Railway service URL.
                   </p>
                 </div>
                 

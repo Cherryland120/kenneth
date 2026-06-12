@@ -20,9 +20,13 @@ export default function App() {
   const [translationBackendUrl, setTranslationBackendUrl] = useState<string>(
     localStorage.getItem('translationBackendUrl') || ''
   );
+  const [translationEngine, setTranslationEngine] = useState<'custom' | 'google'>(
+    (localStorage.getItem('translationEngine') as 'custom' | 'google') || 'custom'
+  );
   const [showSettings, setShowSettings] = useState(false);
   const [tempUrl, setTempUrl] = useState(backendUrl);
   const [tempTranslationUrl, setTempTranslationUrl] = useState(translationBackendUrl);
+  const [tempTranslationEngine, setTempTranslationEngine] = useState<'custom' | 'google'>(translationEngine);
 
   const handleSaveSettings = () => {
     let finalUrl = tempUrl.trim().replace(/\/$/, '');
@@ -34,6 +38,9 @@ export default function App() {
     if (finalTranslationUrl && !finalTranslationUrl.startsWith('http')) finalTranslationUrl = 'https://' + finalTranslationUrl;
     setTranslationBackendUrl(finalTranslationUrl);
     localStorage.setItem('translationBackendUrl', finalTranslationUrl);
+
+    setTranslationEngine(tempTranslationEngine);
+    localStorage.setItem('translationEngine', tempTranslationEngine);
 
     setShowSettings(false);
   };
@@ -140,7 +147,7 @@ export default function App() {
           'Content-Type': 'application/json',
           'Bypass-Tunnel-Reminder': 'true'
         },
-        body: JSON.stringify({ text: igboTranscription })
+        body: JSON.stringify({ text: igboTranscription, engine: translationEngine })
       });
 
       if (!mtRes.ok) throw new Error('Text-to-text backend not reachable');
@@ -481,9 +488,37 @@ export default function App() {
                     placeholder="https://text-to-text.up.railway.app"
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-all"
                   />
-                  <p className="text-xs text-slate-500 mt-2">
+                  <p className="text-xs text-slate-500 mt-2 mb-4">
                     Your MarianMT (Igbo → English translation) Railway service URL.
                   </p>
+
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                    ⚙️ Translation Engine
+                  </label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 text-white cursor-pointer bg-slate-950 border border-slate-800 px-4 py-2 rounded-lg flex-1">
+                      <input 
+                        type="radio" 
+                        name="engine" 
+                        value="custom" 
+                        checked={tempTranslationEngine === 'custom'}
+                        onChange={() => setTempTranslationEngine('custom')}
+                        className="accent-orange-500 w-4 h-4"
+                      />
+                      Custom Model
+                    </label>
+                    <label className="flex items-center gap-2 text-white cursor-pointer bg-slate-950 border border-slate-800 px-4 py-2 rounded-lg flex-1">
+                      <input 
+                        type="radio" 
+                        name="engine" 
+                        value="google" 
+                        checked={tempTranslationEngine === 'google'}
+                        onChange={() => setTempTranslationEngine('google')}
+                        className="accent-orange-500 w-4 h-4"
+                      />
+                      Google Translate
+                    </label>
+                  </div>
                 </div>
                 
                 <div className="pt-2 flex justify-end gap-3">
@@ -523,6 +558,8 @@ export default function App() {
           <button 
             onClick={() => {
               setTempUrl(backendUrl);
+              setTempTranslationUrl(translationBackendUrl);
+              setTempTranslationEngine(translationEngine);
               setShowSettings(true);
             }}
             className="flex items-center gap-1.5 hover:text-orange-400 transition-colors"

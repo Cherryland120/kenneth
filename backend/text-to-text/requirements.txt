@@ -5,3 +5,4 @@ transformers==4.38.2
 torch==2.6.0+cpu
 sentencepiece
 pydantic
+deep-translator

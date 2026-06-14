@@ -231,29 +231,33 @@ export default function App() {
     if (!backendUrl) { setLiveError('Speech backend URL not configured. Go to Settings.'); return; }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-      liveMediaRecorderRef.current = recorder;
       liveChunkIdRef.current = 0;
       setLiveChunks([]); setLiveError(null); setElapsedSeconds(0); setLiveChunkId(0);
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          liveChunkIdRef.current += 1;
-          setLiveChunkId(liveChunkIdRef.current);
-          sendChunk(e.data, liveChunkIdRef.current);
-        }
-      };
-
-      recorder.onstop = () => {
-        stream.getTracks().forEach((t) => t.stop());
-        if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-      };
-
-      // timeslice=4000ms → fires ondataavailable every 4 seconds
-      recorder.start(4000);
       setIsLiveRecording(true);
 
-      // timer
+      const recordChunk = () => {
+        const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+        
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 500) {
+            liveChunkIdRef.current += 1;
+            setLiveChunkId(liveChunkIdRef.current);
+            sendChunk(e.data, liveChunkIdRef.current);
+          }
+        };
+
+        recorder.start();
+        liveMediaRecorderRef.current = recorder;
+
+        setTimeout(() => {
+          if (liveMediaRecorderRef.current === recorder && recorder.state !== 'inactive') {
+            recorder.stop();
+            if (timerRef.current) recordChunk();
+          }
+        }, 4000);
+      };
+
+      recordChunk();
       timerRef.current = setInterval(() => setElapsedSeconds((s) => s + 1), 1000);
     } catch {
       setLiveError('Microphone access denied. Please grant permission.');
@@ -261,9 +265,14 @@ export default function App() {
   };
 
   const stopLiveTranslation = () => {
-    liveMediaRecorderRef.current?.stop();
     setIsLiveRecording(false);
-    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    if (liveMediaRecorderRef.current && liveMediaRecorderRef.current.state !== 'inactive') {
+      liveMediaRecorderRef.current.stop();
+    }
+    if (timerRef.current) { 
+      clearInterval(timerRef.current); 
+      timerRef.current = null; 
+    }
   };
 
   const resetLive = () => {

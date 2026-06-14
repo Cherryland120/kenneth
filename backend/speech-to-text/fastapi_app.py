@@ -1,5 +1,6 @@
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI, UploadFile, File, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, Response
 from transformers import pipeline, MarianMTModel, MarianTokenizer
 from deep_translator import GoogleTranslator
 import tempfile
@@ -7,14 +8,28 @@ import os
 
 app = FastAPI()
 
-# Allow cross-origin requests from the React frontend
+# Allow cross-origin requests from any origin.
+# We use allow_origins=["*"] and also manually handle OPTIONS (preflight)
+# because Cloudflare Tunnel can intercept OPTIONS before FastAPI responds.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Explicit OPTIONS handler to handle Cloudflare preflight interception
+@app.options("/{rest_of_path:path}")
+async def preflight_handler(request: Request, rest_of_path: str):
+    return Response(
+        status_code=204,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        },
+    )
 
 # ─── Whisper (Speech → Igbo text) ───────────────────────────────────────────
 

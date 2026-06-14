@@ -1,16 +1,16 @@
 <div align="center">
 
 
-# IgboSync 🎙️✨
+# Kenneth Final Year Project 🎙️✨
 
-**Igbo Speech Transcription & Translation Web Application**
+**Igbo Speech & Text Translation Web Application**
 </div>
 
 ---
 
-IgboSync is a web application designed to bridge the gap between Igbo speakers and technology by providing real-time speech transcription and translation. Utilizing a fine-tuned Whisper Large v3 model, IgboSync can transcribe spoken Igbo into written Igbo text, as well as translate Igbo speech directly to English text, with automated text-to-speech feedback.
+Kenneth Final Year Project is a web application designed to bridge the gap between Igbo speakers and technology by providing real-time speech transcription and translation. Utilizing a fine-tuned Whisper Large v3 model, Kenneth Final Year Project can transcribe spoken Igbo into written Igbo text, as well as translate Igbo speech directly to English text, with automated text-to-speech feedback.
 
-Developed as a Final Year Project, IgboSync supports dual running environments: GPU-accelerated remote backends (such as Google Colab or Railway) and a local development server.
+Developed as a Final Year Project, Kenneth Final Year Project supports dual running environments: GPU-accelerated remote backends (such as Google Colab or Railway) and a local development server.
 
 ---
 
@@ -110,7 +110,7 @@ For resource-constrained environments (like laptops without a dedicated GPU), yo
             print(line.strip().split("your url is: ")[1])
             break
     ```
-3.  Open your IgboSync frontend, click the **Config** (Settings) icon at the bottom, paste the generated tunnel URL, and save.
+3.  Open your Kenneth Final Year Project frontend, click the **Config** (Settings) icon at the bottom, paste the generated tunnel URL, and save.
 
 ---
 

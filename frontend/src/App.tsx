@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type AppMode = 'transcribe' | 'translate' | 'live';
+type AppMode = 'transcribe' | 'translate' | 'live' | 'text';
 type TranslationEngine = 'custom' | 'google';
 
 interface LiveChunk {
@@ -51,6 +51,7 @@ export default function App() {
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [transcription, setTranscription] = useState<string>('');
   const [igboText, setIgboText] = useState<string>('');
+  const [textInput, setTextInput] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
@@ -184,9 +185,38 @@ export default function App() {
     }
   };
 
+  const handleProcessText = async () => {
+    if (!textInput.trim()) { setError('Please enter some text to translate.'); return; }
+    if (!translationBackendUrl) { setError('Translation backend URL not configured in Settings.'); return; }
+
+    setIsLoading(true); setError(null); setTranscription(''); setIgboText(''); setCopied(false);
+    setLoadingStep('Translating text...');
+
+    try {
+      const res = await fetch(`${translationBackendUrl}/api/translate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Bypass-Tunnel-Reminder': 'true' },
+        body: JSON.stringify({ text: textInput, engine: translationEngine })
+      });
+
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      setTranscription(data.translated_text);
+      setIgboText(textInput);
+    } catch (e: any) {
+      setError(`Translation failed: ${e.message}`);
+    } finally {
+      setIsLoading(false);
+      setLoadingStep('');
+    }
+  };
+
   const reset = () => {
     setAudioBlob(null); setAudioUrl(null); setTranscription('');
     setIgboText(''); setError(null); setCopied(false); setLoadingStep('');
+    setTextInput('');
   };
 
   const copyToClipboard = () => {
@@ -297,7 +327,7 @@ export default function App() {
             <Languages className="w-6 h-6 text-white" />
           </div>
           <span className="text-2xl font-bold tracking-tight text-slate-900">
-            Igbo<span className="text-orange-500">Sync</span>
+            Kenneth <span className="text-orange-500">Project</span>
           </span>
         </div>
         <div className="hidden md:flex items-center gap-4 border-l pl-6 border-orange-100">
@@ -320,6 +350,7 @@ export default function App() {
             {([
               { id: 'transcribe', label: 'Audio → Igbo Text' },
               { id: 'translate',  label: 'Audio → English Text' },
+              { id: 'text',       label: 'Text → English Text' },
             ] as { id: AppMode; label: string }[]).map(({ id, label }) => (
               <button
                 key={id}
@@ -550,7 +581,33 @@ export default function App() {
                   </div>
                   <div className="flex-1 flex flex-col justify-center mt-6">
                     <AnimatePresence mode="wait">
-                      {!audioBlob ? (
+                      {mode === 'text' ? (
+                        <motion.div
+                          key="text-input"
+                          initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}
+                          className="flex flex-col h-full space-y-4 justify-center"
+                        >
+                          <textarea
+                            value={textInput}
+                            onChange={(e) => setTextInput(e.target.value)}
+                            placeholder="Type Igbo text here..."
+                            className="w-full h-40 p-4 border border-orange-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-500/50 resize-none bg-orange-50/50 text-slate-800"
+                          />
+                          <div className="flex gap-3 pt-2">
+                            <button onClick={reset} className="px-4 py-3 text-slate-500 hover:text-slate-700 bg-white rounded-xl shadow-sm border border-slate-200 transition-all hover:bg-slate-50" title="Reset">
+                              <RefreshCw className="w-5 h-5" />
+                            </button>
+                            <button
+                              onClick={handleProcessText}
+                              disabled={isLoading}
+                              className="flex-1 py-3 bg-orange-600 text-white rounded-xl font-semibold shadow-md hover:bg-orange-700 transition-all flex items-center justify-center space-x-2 disabled:opacity-70"
+                            >
+                              {isLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5" />}
+                              <span>{isLoading ? 'Processing...' : 'Translate Text'}</span>
+                            </button>
+                          </div>
+                        </motion.div>
+                      ) : !audioBlob ? (
                         <motion.div
                           key="input-methods"
                           initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
@@ -627,15 +684,15 @@ export default function App() {
                     </span>
                   </div>
                   <div className="flex-1 mt-6 overflow-y-auto space-y-4">
-                    {mode === 'translate' && igboText && (
+                    {(mode === 'translate' || mode === 'text') && igboText && (
                       <div className="bg-orange-600/50 rounded-2xl p-4 border border-orange-400/30">
-                        <p className="text-[10px] font-bold text-orange-200 uppercase tracking-widest mb-2">Igbo (Transcribed)</p>
+                        <p className="text-[10px] font-bold text-orange-200 uppercase tracking-widest mb-2">Igbo (Input)</p>
                         <p className="text-sm text-orange-100 leading-relaxed">{igboText}</p>
                       </div>
                     )}
                     {transcription ? (
                       <div>
-                        {mode === 'translate' && igboText && (
+                        {(mode === 'translate' || mode === 'text') && igboText && (
                           <p className="text-[10px] font-bold text-orange-200 uppercase tracking-widest mb-2">English (Translated)</p>
                         )}
                         <p className="text-xl md:text-2xl font-medium leading-relaxed whitespace-pre-wrap">{transcription}</p>

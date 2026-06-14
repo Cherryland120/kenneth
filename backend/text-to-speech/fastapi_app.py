@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 from elevenlabs.client import ElevenLabs
 import os
@@ -11,33 +11,37 @@ load_dotenv()
 
 app = FastAPI()
 
-# Allow cross-origin requests from the frontend
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# ── CORS Middleware ───────────────────────────────────────────────────────────
+# Using a raw BaseHTTPMiddleware instead of CORSMiddleware because Railway's
+# reverse proxy can intercept OPTIONS preflight requests and return a response
+# before it ever reaches CORSMiddleware or route handlers. This middleware
+# injects Access-Control headers into EVERY response at the lowest level.
+class CORSMiddlewareCustom(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # Handle preflight OPTIONS immediately
+        if request.method == "OPTIONS":
+            return Response(
+                status_code=204,
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                    "Access-Control-Allow-Headers": "*",
+                    "Access-Control-Max-Age": "86400",
+                },
+            )
+        response = await call_next(request)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
 
-# Explicit OPTIONS handler — Railway (like Cloudflare) can intercept preflights
-# before they reach FastAPI, so we handle them explicitly here.
-@app.options("/{rest_of_path:path}")
-async def preflight_handler(request: Request, rest_of_path: str):
-    return Response(
-        status_code=204,
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-            "Access-Control-Allow-Headers": "*",
-        },
-    )
+app.add_middleware(CORSMiddlewareCustom)
 
 # Initialize ElevenLabs client
 api_key = os.environ.get("ELEVEN_LABS_API")
 if not api_key:
     print("Warning: ELEVEN_LABS_API environment variable not set.")
-    
+
 client = ElevenLabs(api_key=api_key)
 
 class TTSRequest(BaseModel):
@@ -47,20 +51,18 @@ class TTSRequest(BaseModel):
 async def synthesize_speech(request: TTSRequest):
     if not api_key:
         raise HTTPException(status_code=500, detail="ElevenLabs API Key not configured on the server.")
-        
+
     try:
-        # User requested hardcoded voice_id
         audio_generator = client.text_to_speech.convert(
             text=request.text,
             voice_id="neMPCpWtBwWZhxEC8qpe",
             model_id="eleven_multilingual_v2",
             output_format="mp3_44100_128",
         )
-        
-        # convert generator to bytes
+
+        # Consume generator into bytes
         audio_bytes = b"".join(audio_generator)
-        
-        # Return the audio stream directly to the client
+
         return Response(content=audio_bytes, media_type="audio/mpeg")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

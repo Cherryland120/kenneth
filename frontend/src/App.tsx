@@ -88,6 +88,9 @@ export default function App() {
   // ── audio queue for TTS ──────────────────────────────────────────────────
   const audioQueueRef = useRef<string[]>([]);
   const isPlayingAudioRef = useRef<boolean>(false);
+  // Ref so sendChunk always reads the latest ttsBackendUrl (avoids stale closure)
+  const ttsBackendUrlRef = useRef<string>(ttsBackendUrl);
+  useEffect(() => { ttsBackendUrlRef.current = ttsBackendUrl; }, [ttsBackendUrl]);
 
   const playNextAudio = useCallback(() => {
     if (audioQueueRef.current.length === 0) {
@@ -104,7 +107,8 @@ export default function App() {
     });
   }, []);
 
-  const playElevenLabsAudio = useCallback(async (text: string, ttsUrl: string) => {
+  const playElevenLabsAudio = useCallback(async (text: string) => {
+    const ttsUrl = ttsBackendUrlRef.current;
     if (!ttsUrl) {
       window.speechSynthesis.cancel();
       const utt = new SpeechSynthesisUtterance(text);
@@ -225,7 +229,7 @@ export default function App() {
       setTranscription(english);
 
       if (mtData.translated_text) {
-        playElevenLabsAudio(mtData.translated_text, ttsBackendUrl);
+        playElevenLabsAudio(mtData.translated_text);
       }
     } catch (err: any) {
       const msg = err.message || 'Unknown error';
@@ -258,7 +262,7 @@ export default function App() {
       setTranscription(data.translated_text);
       setIgboText(textInput);
       if (data.translated_text) {
-        playElevenLabsAudio(data.translated_text, ttsBackendUrl);
+        playElevenLabsAudio(data.translated_text);
       }
     } catch (e: any) {
       setError(`Translation failed: ${e.message}`);
@@ -305,7 +309,7 @@ export default function App() {
           { id: chunkId, igbo: data.igbo_text, english: data.english_text || '' },
         ]);
         if (data.english_text) {
-          playElevenLabsAudio(data.english_text, ttsBackendUrl);
+          playElevenLabsAudio(data.english_text);
         }
       }
     } catch (e: any) {

@@ -1,6 +1,7 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
-from transformers import pipeline
+from transformers import pipeline, MarianMTModel, MarianTokenizer
+from deep_translator import GoogleTranslator
 import tempfile
 import os
 
@@ -15,20 +16,62 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-MODEL_NAME = "abasseyfresh/whisper-large-v3-igbo"
+# ─── Whisper (Speech → Igbo text) ───────────────────────────────────────────
+
+WHISPER_MODEL = "abasseyfresh/whisper-large-v3-igbo"
 
 print("Loading Whisper model...")
 test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
 if test_mode:
-    print("TEST_MODE enabled. Using a dummy model for instant startup.")
-    class DummyPipe:
+    print("TEST_MODE enabled. Using dummy models for instant startup.")
+
+    class DummyWhisperPipe:
         def __call__(self, audio_path, **kwargs):
             return {"text": "Nke a bụ ule ederede! (This is a test transcription from the mock backend)"}
-    pipe = DummyPipe()
+
+    pipe = DummyWhisperPipe()
 else:
-    # transformers==4.44.2 supports tokenizers>=0.20 which is required by this model
-    pipe = pipeline("automatic-speech-recognition", model=MODEL_NAME)
-print("Model loaded successfully.")
+    pipe = pipeline("automatic-speech-recognition", model=WHISPER_MODEL)
+print("Whisper model loaded.")
+
+# ─── MarianMT (Igbo text → English text) ─────────────────────────────────────
+
+MARIAN_MODEL = os.getenv("MARIAN_MODEL_PATH", "Cherryland120/igbo-mt-finetuned")
+
+print(f"Loading MarianMT model from: {MARIAN_MODEL}...")
+try:
+    marian_tokenizer = MarianTokenizer.from_pretrained(MARIAN_MODEL)
+    marian_model = MarianMTModel.from_pretrained(MARIAN_MODEL)
+    print("MarianMT model loaded.")
+except Exception as e:
+    print(f"Warning: MarianMT model failed to load: {e}")
+    marian_tokenizer = None
+    marian_model = None
+
+
+def translate_igbo_to_english(igbo_text: str, engine: str = "custom") -> str:
+    """Translate Igbo text to English using the selected engine."""
+    if engine == "google":
+        try:
+            translator = GoogleTranslator(source="ig", target="en")
+            return translator.translate(igbo_text) or igbo_text
+        except Exception as e:
+            print(f"Google Translate error: {e}. Falling back to custom model.")
+
+    # Custom MarianMT model (default)
+    if marian_model and marian_tokenizer:
+        try:
+            inputs = marian_tokenizer(igbo_text, return_tensors="pt", padding=True)
+            translated = marian_model.generate(**inputs)
+            return marian_tokenizer.batch_decode(translated, skip_special_tokens=True)[0]
+        except Exception as e:
+            print(f"MarianMT error: {e}.")
+            return igbo_text
+
+    return igbo_text  # fallback: return source text unchanged
+
+
+# ─── Existing endpoints ───────────────────────────────────────────────────────
 
 @app.post("/api/transcribe")
 async def transcribe_audio(file: UploadFile = File(...)):
@@ -36,9 +79,8 @@ async def transcribe_audio(file: UploadFile = File(...)):
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
         temp_audio.write(await file.read())
         temp_audio_path = temp_audio.name
-        
+
     try:
-        # Run inference for transcription
         result = pipe(temp_audio_path)
         return {"text": result.get("text", "")}
     except Exception as e:
@@ -48,15 +90,15 @@ async def transcribe_audio(file: UploadFile = File(...)):
         if os.path.exists(temp_audio_path):
             os.unlink(temp_audio_path)
 
+
 @app.post("/api/translate")
 async def translate_audio(file: UploadFile = File(...)):
     """Translates Igbo audio directly to English text."""
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
         temp_audio.write(await file.read())
         temp_audio_path = temp_audio.name
-        
+
     try:
-        # Pass task="translate" to force translation output
         result = pipe(temp_audio_path, generate_kwargs={"task": "translate"})
         return {"text": result.get("text", "")}
     except Exception as e:
@@ -66,7 +108,95 @@ async def translate_audio(file: UploadFile = File(...)):
         if os.path.exists(temp_audio_path):
             os.unlink(temp_audio_path)
 
+
+# ─── NEW: Live translation endpoints ─────────────────────────────────────────
+
+@app.post("/api/live-transcribe")
+async def live_transcribe(
+    file: UploadFile = File(...),
+    chunk_id: int = Form(0),
+):
+    """
+    Live mode — transcribe only.
+    Accepts a ~4s audio chunk, returns Igbo transcription text.
+    """
+    suffix = ".webm"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        tmp.write(await file.read())
+        tmp_path = tmp.name
+
+    try:
+        result = pipe(tmp_path)
+        igbo_text = (result.get("text") or "").strip()
+        return {"igbo_text": igbo_text, "chunk_id": chunk_id}
+    except Exception as e:
+        print(f"live_transcribe error (chunk {chunk_id}): {e}")
+        return {"error": str(e), "chunk_id": chunk_id}
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+
+@app.post("/api/live-translate")
+async def live_translate(
+    file: UploadFile = File(...),
+    chunk_id: int = Form(0),
+    engine: str = Form("custom"),  # "custom" (MarianMT) or "google"
+):
+    """
+    Live mode — transcribe + translate.
+    Accepts a ~4s audio chunk.
+    Step 1: Whisper transcribes → Igbo text.
+    Step 2: MarianMT (default) or Google Translate → English text.
+    Returns { igbo_text, english_text, chunk_id, engine }.
+    """
+    suffix = ".webm"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        tmp.write(await file.read())
+        tmp_path = tmp.name
+
+    try:
+        # Step 1: Whisper transcription
+        result = pipe(tmp_path)
+        igbo_text = (result.get("text") or "").strip()
+
+        if not igbo_text:
+            return {
+                "igbo_text": "",
+                "english_text": "",
+                "chunk_id": chunk_id,
+                "engine": engine,
+                "note": "No speech detected in this chunk.",
+            }
+
+        # Step 2: Translation
+        english_text = translate_igbo_to_english(igbo_text, engine=engine)
+
+        return {
+            "igbo_text": igbo_text,
+            "english_text": english_text,
+            "chunk_id": chunk_id,
+            "engine": engine,
+        }
+
+    except Exception as e:
+        print(f"live_translate error (chunk {chunk_id}): {e}")
+        return {"error": str(e), "chunk_id": chunk_id}
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "whisper_loaded": not isinstance(pipe, type(None)),
+        "marian_loaded": marian_model is not None,
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
-    # Run the API locally on port 8000
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)

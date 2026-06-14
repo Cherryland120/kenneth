@@ -65,7 +65,12 @@ async def synthesize_speech(request: TTSRequest):
 
         return Response(content=audio_bytes, media_type="audio/mpeg")
     except Exception as e:
+        import traceback
+        print("=== TTS ERROR ===")
+        print(traceback.format_exc())
+        print("=================")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/health")
 async def health_check():

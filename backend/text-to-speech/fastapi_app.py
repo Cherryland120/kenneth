@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel
@@ -15,10 +15,23 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Explicit OPTIONS handler — Railway (like Cloudflare) can intercept preflights
+# before they reach FastAPI, so we handle them explicitly here.
+@app.options("/{rest_of_path:path}")
+async def preflight_handler(request: Request, rest_of_path: str):
+    return Response(
+        status_code=204,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        },
+    )
 
 # Initialize ElevenLabs client
 api_key = os.environ.get("ELEVEN_LABS_API")

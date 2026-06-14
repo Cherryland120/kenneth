@@ -37,10 +37,14 @@ export default function App() {
   const [translationEngine, setTranslationEngine] = useState<TranslationEngine>(
     (localStorage.getItem('translationEngine') as TranslationEngine) || 'custom'
   );
+  const [ttsBackendUrl, setTtsBackendUrl] = useState<string>(
+    localStorage.getItem('ttsBackendUrl') || ''
+  );
   const [showSettings, setShowSettings] = useState(false);
   const [tempUrl, setTempUrl] = useState(backendUrl);
   const [tempTranslationUrl, setTempTranslationUrl] = useState(translationBackendUrl);
   const [tempTranslationEngine, setTempTranslationEngine] = useState<TranslationEngine>(translationEngine);
+  const [tempTtsUrl, setTempTtsUrl] = useState<string>(ttsBackendUrl);
 
   // ── global mode ──────────────────────────────────────────────────────────
   const [mode, setMode] = useState<AppMode>('transcribe');
@@ -81,6 +85,51 @@ export default function App() {
     englishScrollRef.current?.scrollTo({ top: englishScrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [liveChunks]);
 
+  // ── audio queue for TTS ──────────────────────────────────────────────────
+  const audioQueueRef = useRef<string[]>([]);
+  const isPlayingAudioRef = useRef<boolean>(false);
+
+  const playNextAudio = useCallback(() => {
+    if (audioQueueRef.current.length === 0) {
+      isPlayingAudioRef.current = false;
+      return;
+    }
+    isPlayingAudioRef.current = true;
+    const url = audioQueueRef.current.shift()!;
+    const audio = new Audio(url);
+    audio.onended = () => playNextAudio();
+    audio.play().catch(e => {
+      console.error(e);
+      playNextAudio();
+    });
+  }, []);
+
+  const playElevenLabsAudio = useCallback(async (text: string, ttsUrl: string) => {
+    if (!ttsUrl) {
+      window.speechSynthesis.cancel();
+      const utt = new SpeechSynthesisUtterance(text);
+      utt.lang = 'en-US'; utt.rate = 0.9;
+      window.speechSynthesis.speak(utt);
+      return;
+    }
+    try {
+      const res = await fetch(`${ttsUrl}/api/synthesize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
+      if (!res.ok) throw new Error("TTS backend failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      audioQueueRef.current.push(url);
+      if (!isPlayingAudioRef.current) {
+        playNextAudio();
+      }
+    } catch (err) {
+      console.error("Failed to play TTS", err);
+    }
+  }, [playNextAudio]);
+
   // ── settings ─────────────────────────────────────────────────────────────
   const handleSaveSettings = () => {
     let u = tempUrl.trim().replace(/\/$/, '');
@@ -95,6 +144,12 @@ export default function App() {
 
     setTranslationEngine(tempTranslationEngine);
     localStorage.setItem('translationEngine', tempTranslationEngine);
+
+    let ttsU = tempTtsUrl.trim().replace(/\/$/, '');
+    if (ttsU && !ttsU.startsWith('http')) ttsU = 'https://' + ttsU;
+    setTtsBackendUrl(ttsU);
+    localStorage.setItem('ttsBackendUrl', ttsU);
+
     setShowSettings(false);
   };
 
@@ -170,10 +225,7 @@ export default function App() {
       setTranscription(english);
 
       if (mtData.translated_text) {
-        window.speechSynthesis.cancel();
-        const utt = new SpeechSynthesisUtterance(mtData.translated_text);
-        utt.lang = 'en-US'; utt.rate = 0.9;
-        window.speechSynthesis.speak(utt);
+        playElevenLabsAudio(mtData.translated_text, ttsBackendUrl);
       }
     } catch (err: any) {
       const msg = err.message || 'Unknown error';
@@ -205,6 +257,9 @@ export default function App() {
 
       setTranscription(data.translated_text);
       setIgboText(textInput);
+      if (data.translated_text) {
+        playElevenLabsAudio(data.translated_text, ttsBackendUrl);
+      }
     } catch (e: any) {
       setError(`Translation failed: ${e.message}`);
     } finally {
@@ -249,13 +304,16 @@ export default function App() {
           ...prev,
           { id: chunkId, igbo: data.igbo_text, english: data.english_text || '' },
         ]);
+        if (data.english_text) {
+          playElevenLabsAudio(data.english_text, ttsBackendUrl);
+        }
       }
     } catch (e: any) {
       setLiveError(`Chunk ${chunkId} failed: ${e.message}`);
     } finally {
       setLivePendingCount((c) => Math.max(0, c - 1));
     }
-  }, [backendUrl, translationEngine]);
+  }, [backendUrl, translationEngine, ttsBackendUrl, playElevenLabsAudio]);
 
   const startLiveTranslation = async () => {
     if (!backendUrl) { setLiveError('Speech backend URL not configured. Go to Settings.'); return; }
@@ -781,6 +839,17 @@ export default function App() {
                     Custom Model = MarianMT (more accurate, slower). Google = fast fallback.
                   </p>
                 </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">🗣️ Text-to-Speech URL</label>
+                  <input
+                    type="text" value={tempTtsUrl} onChange={(e) => setTempTtsUrl(e.target.value)}
+                    placeholder="https://text-to-speech.up.railway.app"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-all"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">Used to read out English translations with ElevenLabs. Leave blank for browser voice.</p>
+                </div>
+
                 <div className="pt-2 flex justify-end gap-3">
                   <button onClick={() => setShowSettings(false)} className="px-4 py-2 rounded-lg font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors">
                     Cancel

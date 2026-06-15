@@ -34,23 +34,35 @@ class CORSMiddlewareCustom(BaseHTTPMiddleware):
 
 app.add_middleware(CORSMiddlewareCustom)
 
-# ─── Whisper (Speech → Igbo text) ───────────────────────────────────────────
+# ─── Whisper (Speech → Igbo text via HF Endpoint) ───────────────────────────
+import httpx
+import os
 
-WHISPER_MODEL = "abasseyfresh/whisper-large-v3-igbo"
+HF_ENDPOINT_URL = os.getenv("HF_ENDPOINT_URL", "https://i3ak233pko6dch3x.eu-west-1.aws.endpoints.huggingface.cloud")
+HF_TOKEN = os.getenv("HF_TOKEN", "")
 
-print("Loading Whisper model...")
-test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
-if test_mode:
-    print("TEST_MODE enabled. Using dummy models for instant startup.")
+print(f"Routing Whisper requests to HF Endpoint: {HF_ENDPOINT_URL}")
 
-    class DummyWhisperPipe:
-        def __call__(self, audio_path, **kwargs):
-            return {"text": "Nke a bụ ule ederede! (This is a test transcription from the mock backend)"}
+async def query_hf_endpoint(audio_path: str, task: str = "transcribe") -> dict:
+    if not HF_TOKEN:
+        print("WARNING: HF_TOKEN is not set. Inference will likely fail unless the endpoint is public.")
+    
+    headers = {
+        "Accept": "application/json",
+        "Authorization": f"Bearer {HF_TOKEN}",
+        "Content-Type": "audio/wav"
+    }
+    
+    # We can pass parameters like task via X-Amzn-SageMaker-Custom-Attributes or HF custom headers, 
+    # but Whisper v3 typically auto-detects. We'll rely on default transcription.
+    with open(audio_path, "rb") as f:
+        data = f.read()
+        
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        response = await client.post(HF_ENDPOINT_URL, headers=headers, content=data)
+        response.raise_for_status()
+        return response.json()
 
-    pipe = DummyWhisperPipe()
-else:
-    pipe = pipeline("automatic-speech-recognition", model=WHISPER_MODEL)
-print("Whisper model loaded.")
 
 # ─── MarianMT (Igbo text → English text) ─────────────────────────────────────
 
@@ -99,7 +111,7 @@ async def transcribe_audio(file: UploadFile = File(...)):
         temp_audio_path = temp_audio.name
 
     try:
-        result = pipe(temp_audio_path)
+        result = await query_hf_endpoint(temp_audio_path)
         return {"text": result.get("text", "")}
     except Exception as e:
         print(f"Error: {e}")
@@ -117,7 +129,7 @@ async def translate_audio(file: UploadFile = File(...)):
         temp_audio_path = temp_audio.name
 
     try:
-        result = pipe(temp_audio_path, generate_kwargs={"task": "translate"})
+        result = await query_hf_endpoint(temp_audio_path, task="translate")
         return {"text": result.get("text", "")}
     except Exception as e:
         print(f"Error: {e}")
@@ -144,7 +156,7 @@ async def live_transcribe(
         tmp_path = tmp.name
 
     try:
-        result = pipe(tmp_path)
+        result = await query_hf_endpoint(tmp_path)
         igbo_text = (result.get("text") or "").strip()
         return {"igbo_text": igbo_text, "chunk_id": chunk_id}
     except Exception as e:
@@ -174,8 +186,8 @@ async def live_translate(
         tmp_path = tmp.name
 
     try:
-        # Step 1: Whisper transcription
-        result = pipe(tmp_path)
+        # Step 1: Whisper transcription via HF Endpoint
+        result = await query_hf_endpoint(tmp_path)
         igbo_text = (result.get("text") or "").strip()
 
         if not igbo_text:
@@ -209,7 +221,7 @@ async def live_translate(
 async def health_check():
     return {
         "status": "healthy",
-        "whisper_loaded": not isinstance(pipe, type(None)),
+        "whisper_endpoint": HF_ENDPOINT_URL,
         "marian_loaded": marian_model is not None,
     }
 

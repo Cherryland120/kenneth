@@ -200,8 +200,8 @@ export default function App() {
 
       setLoadingStep('Transcribing Igbo audio...');
       const sttRes = await fetch(`${backendUrl}/api/transcribe`, {
-          headers: { 'ngrok-skip-browser-warning': 'true' }
-        });
+        method: 'POST', body: fd
+      });
         if (!sttRes.ok) throw new Error('Speech-to-text backend not reachable');
         const sttData = await sttRes.json();
       const igbo = sttData.text || '';
@@ -220,7 +220,7 @@ export default function App() {
 
       const mtRes = await fetch(`${translationBackendUrl}/api/translate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Bypass-Tunnel-Reminder': 'true', 'ngrok-skip-browser-warning': 'true' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: igbo, engine: translationEngine }),
       });
       if (!mtRes.ok) throw new Error('Text-to-text backend not reachable');
@@ -260,7 +260,7 @@ export default function App() {
     try {
       const res = await fetch(`${translationBackendUrl}/api/translate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Bypass-Tunnel-Reminder': 'true', 'ngrok-skip-browser-warning': 'true' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: textInput, engine: translationEngine })
       });
 
@@ -302,9 +302,9 @@ export default function App() {
       fd.append('chunk_id', String(chunkId));
       fd.append('engine', translationEngine);
 
-        const res = await fetch(`${backendUrl}/api/live-translate`, {
-          method: 'POST', body: fd, headers: { 'ngrok-skip-browser-warning': 'true' }
-        });
+      const res = await fetch(`${backendUrl}/api/live-translate`, {
+        method: 'POST', body: fd
+      });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
 

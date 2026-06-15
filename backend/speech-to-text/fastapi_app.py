@@ -1,6 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, Form, Request
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
+from starlette.middleware.base import BaseHTTPMiddleware
 from transformers import pipeline, MarianMTModel, MarianTokenizer
 from deep_translator import GoogleTranslator
 import tempfile
@@ -8,28 +8,31 @@ import os
 
 app = FastAPI()
 
-# Allow cross-origin requests from any origin.
-# We use allow_origins=["*"] and also manually handle OPTIONS (preflight)
-# because Cloudflare Tunnel can intercept OPTIONS before FastAPI responds.
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# ── CORS Middleware ───────────────────────────────────────────────────────────
+# Using a raw BaseHTTPMiddleware instead of CORSMiddleware because proxies like 
+# Cloudflare Tunnel intercept OPTIONS preflight requests and return a response
+# before it ever reaches CORSMiddleware or route handlers. This middleware
+# injects Access-Control headers into EVERY response at the lowest level.
+class CORSMiddlewareCustom(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # Handle preflight OPTIONS immediately
+        if request.method == "OPTIONS":
+            return Response(
+                status_code=204,
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                    "Access-Control-Allow-Headers": "*",
+                    "Access-Control-Max-Age": "86400",
+                },
+            )
+        response = await call_next(request)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
 
-# Explicit OPTIONS handler to handle Cloudflare preflight interception
-@app.options("/{rest_of_path:path}")
-async def preflight_handler(request: Request, rest_of_path: str):
-    return Response(
-        status_code=204,
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-            "Access-Control-Allow-Headers": "*",
-        },
-    )
+app.add_middleware(CORSMiddlewareCustom)
 
 # ─── Whisper (Speech → Igbo text) ───────────────────────────────────────────
 

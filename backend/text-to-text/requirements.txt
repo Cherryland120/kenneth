@@ -6,3 +6,4 @@ torch==2.6.0+cpu
 sentencepiece
 pydantic
 deep-translator
+starlette==0.36.3

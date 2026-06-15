@@ -1,5 +1,6 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, Request
+from fastapi.responses import Response
+from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 from transformers import MarianMTModel, MarianTokenizer
 from deep_translator import GoogleTranslator
@@ -7,14 +8,31 @@ import os
 
 app = FastAPI()
 
-# Allow cross-origin requests from the Vercel frontend
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# ── CORS Middleware ───────────────────────────────────────────────────────────
+# Using a raw BaseHTTPMiddleware instead of CORSMiddleware because proxies like
+# Cloudflare Tunnel intercept OPTIONS preflight requests and return a response
+# before it ever reaches CORSMiddleware or route handlers. This middleware
+# injects Access-Control headers into EVERY response at the lowest level.
+class CORSMiddlewareCustom(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # Handle preflight OPTIONS immediately
+        if request.method == "OPTIONS":
+            return Response(
+                status_code=204,
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                    "Access-Control-Allow-Headers": "*",
+                    "Access-Control-Max-Age": "86400",
+                },
+            )
+        response = await call_next(request)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
+
+app.add_middleware(CORSMiddlewareCustom)
 
 # Load from HF Hub by default; can be overridden via MODEL_PATH env var
 model_path = os.getenv("MODEL_PATH", "Cherryland120/igbo-mt-finetuned")

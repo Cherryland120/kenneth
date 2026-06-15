@@ -7,3 +7,4 @@ torchaudio==2.6.0+cpu
 python-multipart
 soundfile
 deep_translator
+starlette==0.36.3

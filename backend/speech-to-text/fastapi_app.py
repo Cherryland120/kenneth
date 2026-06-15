@@ -1,7 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, Form, Request
 from fastapi.responses import JSONResponse, Response
 from starlette.middleware.base import BaseHTTPMiddleware
-from transformers import pipeline, MarianMTModel, MarianTokenizer
 from deep_translator import GoogleTranslator
 import tempfile
 import os
@@ -64,41 +63,15 @@ async def query_hf_endpoint(audio_path: str, task: str = "transcribe") -> dict:
         return response.json()
 
 
-# ─── MarianMT (Igbo text → English text) ─────────────────────────────────────
-
-MARIAN_MODEL = os.getenv("MARIAN_MODEL_PATH", "Cherryland120/igbo-mt-finetuned")
-
-print(f"Loading MarianMT model from: {MARIAN_MODEL}...")
-try:
-    marian_tokenizer = MarianTokenizer.from_pretrained(MARIAN_MODEL)
-    marian_model = MarianMTModel.from_pretrained(MARIAN_MODEL)
-    print("MarianMT model loaded.")
-except Exception as e:
-    print(f"Warning: MarianMT model failed to load: {e}")
-    marian_tokenizer = None
-    marian_model = None
-
-
-def translate_igbo_to_english(igbo_text: str, engine: str = "custom") -> str:
-    """Translate Igbo text to English using the selected engine."""
-    if engine == "google":
-        try:
-            translator = GoogleTranslator(source="ig", target="en")
-            return translator.translate(igbo_text) or igbo_text
-        except Exception as e:
-            print(f"Google Translate error: {e}. Falling back to custom model.")
-
-    # Custom MarianMT model (default)
-    if marian_model and marian_tokenizer:
-        try:
-            inputs = marian_tokenizer(igbo_text, return_tensors="pt", padding=True)
-            translated = marian_model.generate(**inputs)
-            return marian_tokenizer.batch_decode(translated, skip_special_tokens=True)[0]
-        except Exception as e:
-            print(f"MarianMT error: {e}.")
-            return igbo_text
-
-    return igbo_text  # fallback: return source text unchanged
+# ─── Translation helper for live-translate ──────────────────────────────────
+def translate_igbo_to_english(igbo_text: str, engine: str = "google") -> str:
+    """Translate Igbo text to English using Google Translator."""
+    try:
+        translator = GoogleTranslator(source="ig", target="en")
+        return translator.translate(igbo_text) or igbo_text
+    except Exception as e:
+        print(f"Google Translate error: {e}.")
+        return igbo_text
 
 
 # ─── Existing endpoints ───────────────────────────────────────────────────────
@@ -222,7 +195,6 @@ async def health_check():
     return {
         "status": "healthy",
         "whisper_endpoint": HF_ENDPOINT_URL,
-        "marian_loaded": marian_model is not None,
     }
 
 

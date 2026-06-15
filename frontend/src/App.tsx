@@ -519,10 +519,7 @@ export default function App() {
                       Processing…
                     </div>
                   )}
-                  {/* Engine badge */}
-                  <div className="bg-slate-100 text-slate-600 rounded-full px-3 py-1.5 text-xs font-semibold capitalize">
-                    {translationEngine === 'google' ? 'Google' : 'Custom Model'}
-                  </div>
+                  {/* Engine badge removed as requested */}
                   {(liveChunks.length > 0 || liveError) && !isLiveRecording && (
                     <button
                       onClick={resetLive}

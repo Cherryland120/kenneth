@@ -55,7 +55,7 @@ async def synthesize_speech(request: TTSRequest):
     try:
         audio_generator = client.text_to_speech.convert(
             text=request.text,
-            voice_id="neMPCpWtBwWZhxEC8qpe",
+            voice_id="b8XX4QShLFkd3yZQlz8T",
             model_id="eleven_multilingual_v2",
             output_format="mp3_44100_128",
         )

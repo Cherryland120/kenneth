@@ -62,6 +62,32 @@ async def query_hf_endpoint(audio_path: str, task: str = "transcribe") -> dict:
         response.raise_for_status()
         return response.json()
 
+# ─── Google Speech-to-Text (Backup Engine) ──────────────────────────────────
+import speech_recognition as sr
+from pydub import AudioSegment
+
+def transcribe_google_stt(audio_path: str) -> str:
+    """Fallback STT engine using Google's Web Speech API."""
+    print("Using Google Speech Recognition as backup...")
+    wav_path = audio_path + ".wav"
+    try:
+        audio = AudioSegment.from_file(audio_path)
+        audio.export(wav_path, format="wav")
+        
+        r = sr.Recognizer()
+        with sr.AudioFile(wav_path) as source:
+            audio_data = r.record(source)
+        return r.recognize_google(audio_data, language="ig-NG")
+    except sr.UnknownValueError:
+        print("Google STT could not understand audio")
+        return ""
+    except Exception as e:
+        print(f"Google STT error: {e}")
+        return ""
+    finally:
+        if os.path.exists(wav_path):
+            os.unlink(wav_path)
+
 
 # ─── Translation helper for live-translate ──────────────────────────────────
 def translate_igbo_to_english(igbo_text: str, engine: str = "google") -> str:
@@ -77,15 +103,19 @@ def translate_igbo_to_english(igbo_text: str, engine: str = "google") -> str:
 # ─── Existing endpoints ───────────────────────────────────────────────────────
 
 @app.post("/api/transcribe")
-async def transcribe_audio(file: UploadFile = File(...)):
+async def transcribe_audio(file: UploadFile = File(...), engine: str = Form("custom")):
     """Transcribes Igbo audio to Igbo text."""
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
         temp_audio.write(await file.read())
         temp_audio_path = temp_audio.name
 
     try:
-        result = await query_hf_endpoint(temp_audio_path)
-        return {"text": result.get("text", "")}
+        if engine == "google":
+            text = transcribe_google_stt(temp_audio_path)
+        else:
+            result = await query_hf_endpoint(temp_audio_path)
+            text = result.get("text", "")
+        return {"text": text}
     except Exception as e:
         print(f"Error: {e}")
         return {"error": "Failed to transcribe audio."}
@@ -118,6 +148,7 @@ async def translate_audio(file: UploadFile = File(...)):
 async def live_transcribe(
     file: UploadFile = File(...),
     chunk_id: int = Form(0),
+    engine: str = Form("custom"),
 ):
     """
     Live mode — transcribe only.
@@ -129,8 +160,11 @@ async def live_transcribe(
         tmp_path = tmp.name
 
     try:
-        result = await query_hf_endpoint(tmp_path)
-        igbo_text = (result.get("text") or "").strip()
+        if engine == "google":
+            igbo_text = transcribe_google_stt(tmp_path).strip()
+        else:
+            result = await query_hf_endpoint(tmp_path)
+            igbo_text = (result.get("text") or "").strip()
         return {"igbo_text": igbo_text, "chunk_id": chunk_id}
     except Exception as e:
         print(f"live_transcribe error (chunk {chunk_id}): {e}")
@@ -145,12 +179,13 @@ async def live_translate(
     file: UploadFile = File(...),
     chunk_id: int = Form(0),
     engine: str = Form("custom"),  # "custom" (MarianMT) or "google"
+    stt_engine: str = Form("custom"),  # "custom" (Whisper) or "google"
 ):
     """
     Live mode — transcribe + translate.
     Accepts a ~4s audio chunk.
-    Step 1: Whisper transcribes → Igbo text.
-    Step 2: MarianMT (default) or Google Translate → English text.
+    Step 1: STT Engine (Whisper/Google) transcribes → Igbo text.
+    Step 2: Translation Engine (MarianMT/Google) → English text.
     Returns { igbo_text, english_text, chunk_id, engine }.
     """
     suffix = ".webm"
@@ -159,9 +194,12 @@ async def live_translate(
         tmp_path = tmp.name
 
     try:
-        # Step 1: Whisper transcription via HF Endpoint
-        result = await query_hf_endpoint(tmp_path)
-        igbo_text = (result.get("text") or "").strip()
+        # Step 1: Transcription
+        if stt_engine == "google":
+            igbo_text = transcribe_google_stt(tmp_path).strip()
+        else:
+            result = await query_hf_endpoint(tmp_path)
+            igbo_text = (result.get("text") or "").strip()
 
         if not igbo_text:
             return {

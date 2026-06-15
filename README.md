@@ -1,13 +1,13 @@
 <div align="center">
 
-# Kenneth Final Year Project 🎙️✨
+# IgboSync 🎙️✨
 
 **Igbo Speech & Text Translation Web Application**
 </div>
 
 ---
 
-Kenneth Final Year Project is a web application designed to bridge the gap between Igbo speakers and technology by providing real-time speech transcription, translation, and voice synthesis. Utilizing a fine-tuned Whisper Large v3 model, the app can transcribe spoken Igbo into written text and translate it to English — with automated text-to-speech readout via **ElevenLabs AI voices**.
+IgboSync is a web application designed to bridge the gap between Igbo speakers and technology by providing real-time speech transcription, translation, and voice synthesis. Utilizing a fine-tuned Whisper Large v3 model, the app can transcribe spoken Igbo into written text and translate it to English — with automated text-to-speech readout via **ElevenLabs AI voices**.
 
 Developed as a Final Year Project, the system is composed of three independent microservices deployed on Railway, with a React frontend hosted on Vercel.
 
@@ -130,7 +130,7 @@ Each backend is deployed as a separate Railway service from its own subdirectory
 3. Set the **Root Directory** of each service to its folder (e.g. `backend/text-to-speech`).
 4. Add the `ELEVEN_LABS_API` environment variable to the `text-to-speech` service.
 5. Once deployed, copy each service's public URL.
-6. Open the Kenneth frontend, click **Settings ⚙️**, and paste the URLs for each backend.
+6. Open the IgboSync frontend, click **Settings ⚙️**, and paste the URLs for each backend.
 
 ---
 

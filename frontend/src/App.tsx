@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'motion/react';
 
 type AppMode = 'transcribe' | 'translate' | 'live' | 'text';
 type TranslationEngine = 'custom' | 'google';
+type TranscriptionEngine = 'custom' | 'google';
 
 interface LiveChunk {
   id: number;
@@ -36,6 +37,9 @@ export default function App() {
   );
   const [translationEngine, setTranslationEngine] = useState<TranslationEngine>(
     (localStorage.getItem('translationEngine') as TranslationEngine) || 'custom'
+  );
+  const [transcriptionEngine, setTranscriptionEngine] = useState<TranscriptionEngine>(
+    (localStorage.getItem('transcriptionEngine') as TranscriptionEngine) || 'custom'
   );
   const [ttsBackendUrl, setTtsBackendUrl] = useState<string>(
     localStorage.getItem('ttsBackendUrl') || 'https://artistic-wonder-production-cf65.up.railway.app'
@@ -197,6 +201,7 @@ export default function App() {
       const fd = new FormData();
       fd.append('file', audioBlob);
       fd.append('audio', audioBlob);
+      fd.append('engine', transcriptionEngine);
 
       setLoadingStep('Transcribing Igbo audio...');
       const sttRes = await fetch(`${backendUrl}/api/transcribe`, {
@@ -301,6 +306,7 @@ export default function App() {
       fd.append('file', blob, `chunk_${chunkId}.webm`);
       fd.append('chunk_id', String(chunkId));
       fd.append('engine', translationEngine);
+      fd.append('stt_engine', transcriptionEngine);
 
       const res = await fetch(`${backendUrl}/api/live-translate`, {
         method: 'POST', body: fd
@@ -401,7 +407,7 @@ export default function App() {
             <Languages className="w-6 h-6 text-white" />
           </div>
           <span className="text-2xl font-bold tracking-tight text-slate-900">
-            Kenneth <span className="text-orange-500">Project</span>
+            Igbo<span className="text-orange-500">Sync</span>
           </span>
         </div>
         <div className="hidden md:flex items-center gap-4 border-l pl-6 border-orange-100">

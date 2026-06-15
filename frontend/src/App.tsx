@@ -29,16 +29,16 @@ function formatTime(seconds: number) {
 export default function App() {
   // ── shared settings ──────────────────────────────────────────────────────
   const [backendUrl, setBackendUrl] = useState<string>(
-    localStorage.getItem('backendUrl') || 'https://curvy-jobs-see.loca.lt'
+    localStorage.getItem('backendUrl') || 'https://purplish-slip-stride.ngrok-free.dev'
   );
   const [translationBackendUrl, setTranslationBackendUrl] = useState<string>(
-    localStorage.getItem('translationBackendUrl') || ''
+    localStorage.getItem('translationBackendUrl') || 'https://fearless-manifestation-production.up.railway.app'
   );
   const [translationEngine, setTranslationEngine] = useState<TranslationEngine>(
     (localStorage.getItem('translationEngine') as TranslationEngine) || 'custom'
   );
   const [ttsBackendUrl, setTtsBackendUrl] = useState<string>(
-    localStorage.getItem('ttsBackendUrl') || ''
+    localStorage.getItem('ttsBackendUrl') || 'https://artistic-wonder-production-cf65.up.railway.app'
   );
   const [showSettings, setShowSettings] = useState(false);
   const [tempUrl, setTempUrl] = useState(backendUrl);
@@ -200,10 +200,10 @@ export default function App() {
 
       setLoadingStep('Transcribing Igbo audio...');
       const sttRes = await fetch(`${backendUrl}/api/transcribe`, {
-        method: 'POST', body: fd, headers: { 'Bypass-Tunnel-Reminder': 'true' }
-      });
-      if (!sttRes.ok) throw new Error('Speech-to-text backend not reachable');
-      const sttData = await sttRes.json();
+          headers: { 'ngrok-skip-browser-warning': 'true' }
+        });
+        if (!sttRes.ok) throw new Error('Speech-to-text backend not reachable');
+        const sttData = await sttRes.json();
       const igbo = sttData.text || '';
       if (!igbo) { setError(sttData.error || 'No speech detected.'); return; }
 
@@ -220,7 +220,7 @@ export default function App() {
 
       const mtRes = await fetch(`${translationBackendUrl}/api/translate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Bypass-Tunnel-Reminder': 'true' },
+        headers: { 'Content-Type': 'application/json', 'Bypass-Tunnel-Reminder': 'true', 'ngrok-skip-browser-warning': 'true' },
         body: JSON.stringify({ text: igbo, engine: translationEngine }),
       });
       if (!mtRes.ok) throw new Error('Text-to-text backend not reachable');
@@ -233,9 +233,18 @@ export default function App() {
       }
     } catch (err: any) {
       const msg = err.message || 'Unknown error';
-      if (msg.includes('Speech-to-text')) setError('❌ Speech-to-text backend offline. Check Railway.');
-      else if (msg.includes('Text-to-text')) { if (igboText) setTranscription(igboText); setError('❌ Translation backend unreachable. Showing Igbo only.'); }
-      else setError('❌ ' + msg);
+      // Fetch throws a TypeError with no useful message when the server is unreachable
+      // or when a CORS preflight fails (which happens when the Cloudflare tunnel is offline).
+      // In that case we give the user a clear, actionable message.
+      const isNetworkOrCorsError = err instanceof TypeError || msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('networkerror');
+      if (msg.includes('Speech-to-text') || isNetworkOrCorsError) {
+        setError('❌ Colab backend is offline or the tunnel URL has changed. Open ⚙️ Config in the footer and paste today\'s new Cloudflare tunnel URL.');
+      } else if (msg.includes('Text-to-text')) {
+        if (igboText) setTranscription(igboText);
+        setError('❌ Translation backend unreachable. Showing Igbo only.');
+      } else {
+        setError('❌ ' + msg);
+      }
     } finally {
       setIsLoading(false); setLoadingStep('');
     }
@@ -251,7 +260,7 @@ export default function App() {
     try {
       const res = await fetch(`${translationBackendUrl}/api/translate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Bypass-Tunnel-Reminder': 'true' },
+        headers: { 'Content-Type': 'application/json', 'Bypass-Tunnel-Reminder': 'true', 'ngrok-skip-browser-warning': 'true' },
         body: JSON.stringify({ text: textInput, engine: translationEngine })
       });
 
@@ -293,10 +302,10 @@ export default function App() {
       fd.append('chunk_id', String(chunkId));
       fd.append('engine', translationEngine);
 
-      const res = await fetch(`${backendUrl}/api/live-translate`, {
-        method: 'POST', body: fd, headers: { 'Bypass-Tunnel-Reminder': 'true' }
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const res = await fetch(`${backendUrl}/api/live-translate`, {
+          method: 'POST', body: fd, headers: { 'ngrok-skip-browser-warning': 'true' }
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
 
       if (data.error) {
@@ -313,7 +322,10 @@ export default function App() {
         }
       }
     } catch (e: any) {
-      setLiveError(`Chunk ${chunkId} failed: ${e.message}`);
+      const isNetworkOrCorsError = e instanceof TypeError || (e.message || '').toLowerCase().includes('failed to fetch');
+      setLiveError(isNetworkOrCorsError
+        ? `❌ Chunk ${chunkId}: Colab backend is offline or the tunnel URL has changed. Open ⚙️ Config in the footer and paste today's new Cloudflare tunnel URL.`
+        : `Chunk ${chunkId} failed: ${e.message}`);
     } finally {
       setLivePendingCount((c) => Math.max(0, c - 1));
     }

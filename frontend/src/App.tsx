@@ -79,7 +79,7 @@ function FeatureCard({
 export default function App() {
   // ── shared settings ──────────────────────────────────────────────────────
   const [backendUrl, setBackendUrl] = useState<string>(
-    localStorage.getItem('backendUrl') || 'https://purplish-slip-stride.ngrok-free.dev'
+    localStorage.getItem('backendUrl') || 'https://kenneth-production.up.railway.app'
   );
   const [translationBackendUrl, setTranslationBackendUrl] = useState<string>(
     localStorage.getItem('translationBackendUrl') || 'https://fearless-manifestation-production.up.railway.app'
@@ -94,7 +94,7 @@ export default function App() {
     localStorage.getItem('ttsBackendUrl') || 'https://artistic-wonder-production-cf65.up.railway.app'
   );
   const [enToIgBackendUrl, setEnToIgBackendUrl] = useState<string>(
-    localStorage.getItem('enToIgBackendUrl') || ''
+    localStorage.getItem('enToIgBackendUrl') || 'https://faithful-fascination-production-1ff5.up.railway.app'
   );
   const [showSettings, setShowSettings] = useState(false);
   const [tempUrl, setTempUrl] = useState(backendUrl);
@@ -542,8 +542,8 @@ export default function App() {
         {/* ── Language Selector ─────────────────────────────────────────── */}
         <div className="flex items-center justify-center gap-4 shrink-0 mt-2">
           {([
-            { id: 'igbo' as Language, label: 'Igbo', emoji: '🇳🇬', sub: 'Speak or write Igbo' },
-            { id: 'english' as Language, label: 'English', emoji: '🇬🇧', sub: 'Speak or write English' },
+            { id: 'igbo' as Language, label: 'Igbo', emoji: '🇳', sub: 'Speak or write Igbo' },
+            { id: 'english' as Language, label: 'English', emoji: '🇬', sub: 'Speak or write English' },
           ]).map(({ id, label, emoji, sub }) => (
             <motion.button
               key={id}

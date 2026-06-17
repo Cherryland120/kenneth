@@ -29,8 +29,9 @@ class CORSMiddlewareCustom(BaseHTTPMiddleware):
 
 app.add_middleware(CORSMiddlewareCustom)
 
-# Load from local or HF Hub
-model_path = os.getenv("MODEL_PATH", "./english_mt_finetuned")
+# Load from HF Hub by default; can be overridden via MODEL_PATH env var
+model_path = os.getenv("MODEL_PATH", "Cherryland120/english-to-igbo-marian")
+
 
 print(f"Loading MarianMT model from: {model_path}...")
 try:

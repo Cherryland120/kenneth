@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 
 load_dotenv("/Users/test/repos/kenneth/.env")
 hf_token = os.getenv("HF_TOKEN")
+os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
+
 
 if not hf_token:
     print("HF_TOKEN not found in .env")

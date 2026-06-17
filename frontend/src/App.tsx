@@ -542,8 +542,8 @@ export default function App() {
         {/* ── Language Selector ─────────────────────────────────────────── */}
         <div className="flex items-center justify-center gap-4 shrink-0 mt-2">
           {([
-            { id: 'igbo' as Language, label: 'Igbo', emoji: '🇳', sub: 'Speak or write Igbo' },
-            { id: 'english' as Language, label: 'English', emoji: '🇬', sub: 'Speak or write English' },
+            { id: 'igbo' as Language, label: 'Igbo', emoji: '', sub: 'Speak or write Igbo' },
+            { id: 'english' as Language, label: 'English', emoji: '', sub: 'Speak or write English' },
           ]).map(({ id, label, emoji, sub }) => (
             <motion.button
               key={id}
@@ -1118,10 +1118,10 @@ export default function App() {
               </div>
               <div className="space-y-4">
                 {[
-                  { label: '🎙️ Speech-to-Text URL', val: tempUrl, set: setTempUrl, placeholder: 'https://speech-to-text.up.railway.app', hint: 'Hosts /api/transcribe and /api/live-translate' },
-                  { label: '📝 Igbo → English URL', val: tempTranslationUrl, set: setTempTranslationUrl, placeholder: 'https://text-to-text.up.railway.app', hint: 'Used for Igbo-to-English translation modes' },
-                  { label: '🔄 English → Igbo URL', val: tempEnToIgUrl, set: setTempEnToIgUrl, placeholder: 'https://english-to-igbo.up.railway.app', hint: 'Used for English-to-Igbo translation modes' },
-                  { label: '🗣️ Text-to-Speech URL', val: tempTtsUrl, set: setTempTtsUrl, placeholder: 'https://text-to-speech.up.railway.app', hint: 'ElevenLabs TTS. Leave blank for browser voice.' },
+                  { label: 'Speech-to-Text URL', val: tempUrl, set: setTempUrl, placeholder: 'https://speech-to-text.up.railway.app', hint: 'Hosts /api/transcribe and /api/live-translate' },
+                  { label: 'Igbo → English URL', val: tempTranslationUrl, set: setTempTranslationUrl, placeholder: 'https://text-to-text.up.railway.app', hint: 'Used for Igbo-to-English translation modes' },
+                  { label: 'English → Igbo URL', val: tempEnToIgUrl, set: setTempEnToIgUrl, placeholder: 'https://english-to-igbo.up.railway.app', hint: 'Used for English-to-Igbo translation modes' },
+                  { label: 'Text-to-Speech URL', val: tempTtsUrl, set: setTempTtsUrl, placeholder: 'https://text-to-speech.up.railway.app', hint: 'ElevenLabs TTS. Leave blank for browser voice.' },
                 ].map(({ label, val, set, placeholder, hint }) => (
                   <div key={label}>
                     <label className="block text-sm font-medium text-slate-300 mb-1.5">{label}</label>
@@ -1134,7 +1134,7 @@ export default function App() {
                 ))}
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1.5">⚙️ Translation Engine</label>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">Translation Engine</label>
                   <div className="flex gap-3">
                     {(['custom', 'google'] as TranslationEngine[]).map((eng) => (
                       <label key={eng} className="flex items-center gap-2 text-white cursor-pointer bg-slate-950 border border-slate-800 px-4 py-2 rounded-lg flex-1 hover:border-slate-600 transition-colors">

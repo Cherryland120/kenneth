@@ -11,6 +11,8 @@ IgboSync is a web application designed to bridge the gap between Igbo speakers a
 
 Developed as a Final Year Project, the system is composed of three independent microservices deployed on Railway, with a React frontend hosted on Vercel.
 
+**📊 [View the Official Performance Evaluation Report](./EVALUATION_REPORT.md)**
+
 ---
 
 ## 🚀 Key Features

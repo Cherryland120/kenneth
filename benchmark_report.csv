@@ -1,0 +1,11 @@
+Filename,Ground Truth Igbo,Predicted Igbo,CER,STT Latency (s),Ground Truth English,Predicted English,BLEU Score,TT Latency (s)
+Ahụrụ m nna m na nne m n'anya..mp3,Ahụrụ m nna m na nne m n'anya., Ahuuru m na nna nne nna anya.,0.3333333333333333,2.337581157684326,I love my father and mother.,I understood that grandmother's father was far away.,6.27465531099474,67.43502712249756
+Mama zụtara m ụgbọala taa..mp3,Mama zụtara m ụgbọala taa., Mama zụtara m mụ gbọlata.,0.19230769230769232,2.259751796722412,Mommy bought me a car today.,Mama bought me yam.,15.84873897212071,37.56377601623535
+Abụ m onye buru ibu mgbe m dị obere..mp3,Abụ m onye buru ibu mgbe m dị obere., Abụrụ onye bụrọ ịbụ mgbe ndị obere.,0.2222222222222222,2.348283052444458,I used to be fat when I was little.,Who is the person when small people are.,5.0735520042259505,58.10543990135193
+Aha m bụ Pedro..mp3,Aha m bụ Pedro., Aha mbu Pedro.,0.13333333333333333,1.9028260707855225,I named him Pedro.,NY's first name.,12.44023474812678,48.2267427444458
+Ọ zụtara m nkịta..mp3,Ọ zụtara m nkịta., O zutara mi nkita.,0.23529411764705882,1.9518859386444092,She bought a dog for me.,He bought money from me.,15.207218222740094,41.67798900604248
+Abụ m Kenneth..mp3,Abụ m Kenneth., Abumkenet,0.5,1.9914259910583496,I am Kenneth.,Amarkenet.,0.0,34.97530913352966
+Papa zụtara m ụgbọelu ụnyaahụ..mp3,Papa zụtara m ụgbọelu ụnyaahụ., Papa zụtara mgbe ụkwọ elu ihe ahu.,0.36666666666666664,2.3555729389190674,Daddy bought me an aeroplane yesterday.,Father bought when the upper price was high.,5.669791110976001,48.6104781627655
+Nwanne m nwanyị na-azụkwara m ihe.mp3,Nwanne m nwanyị na-azụkwara m ihe., nwanne m nwaanyi na azu kwara m iye,0.23529411764705882,2.6579020023345947,My sister buys things for me too.,My sister and I visited me well.,13.134549472120788,79.66250705718994
+Ndị mụrụ m zụtara m ihe dị oke ọnụ..mp3,Ndị mụrụ m zụtara m ihe dị oke ọnụ., Ndị mụrụ m zụtara mbi dị ihe oki ọnụ.,0.22857142857142856,2.680814027786255,My parents buy me expensive things.,My parents bought me a bag of things together.,10.552670315936318,71.09503316879272
+Ụmụnne m na-akpasu iwe..mp3,Ụmụnne m na-akpasu iwe., Nnukwu nne nna ka asụ iwe.,0.6086956521739131,2.5427420139312744,My siblings are annoying.,Great mother is angry.,10.682175159905853,57.75974488258362

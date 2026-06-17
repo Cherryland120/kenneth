@@ -7,6 +7,37 @@ import os
 
 app = FastAPI()
 
+# ── DeepFilterNet (Audio Purification) ─────────────────────────────────────────
+try:
+    from df.enhance import enhance, init_df, load_audio, save_audio
+    print("Loading DeepFilterNet model...")
+    df_model, df_state, _ = init_df()
+    print("DeepFilterNet model loaded.")
+except ImportError:
+    print("deepfilternet not installed. Audio purification will be disabled.")
+    df_model, df_state = None, None
+except Exception as e:
+    print(f"Failed to load DeepFilterNet: {e}")
+    df_model, df_state = None, None
+
+def purify_audio(audio_path: str) -> str:
+    """Purifies audio using DeepFilterNet to remove noise."""
+    if df_model is None or df_state is None:
+        return audio_path
+    try:
+        print(f"Purifying audio: {audio_path}")
+        audio, _ = load_audio(audio_path, sr=df_state.sr())
+        enhanced = enhance(df_model, df_state, audio)
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+            enhanced_path = tmp.name
+            
+        save_audio(enhanced_path, enhanced, df_state.sr())
+        return enhanced_path
+    except Exception as e:
+        print(f"Purification error: {e}")
+        return audio_path
+
 # ── CORS Middleware ───────────────────────────────────────────────────────────
 # Using a raw BaseHTTPMiddleware instead of CORSMiddleware because proxies like 
 # Cloudflare Tunnel intercept OPTIONS preflight requests and return a response
@@ -110,6 +141,11 @@ async def transcribe_audio(file: UploadFile = File(...), engine: str = Form("cus
         temp_audio_path = temp_audio.name
 
     try:
+        enhanced_path = purify_audio(temp_audio_path)
+        if enhanced_path != temp_audio_path:
+            os.unlink(temp_audio_path)
+            temp_audio_path = enhanced_path
+
         if engine == "google":
             text = transcribe_google_stt(temp_audio_path, language=language)
         else:
@@ -132,6 +168,11 @@ async def translate_audio(file: UploadFile = File(...)):
         temp_audio_path = temp_audio.name
 
     try:
+        enhanced_path = purify_audio(temp_audio_path)
+        if enhanced_path != temp_audio_path:
+            os.unlink(temp_audio_path)
+            temp_audio_path = enhanced_path
+
         result = await query_hf_endpoint(temp_audio_path, task="translate")
         return {"text": result.get("text", "")}
     except Exception as e:
@@ -160,6 +201,11 @@ async def live_transcribe(
         tmp_path = tmp.name
 
     try:
+        enhanced_path = purify_audio(tmp_path)
+        if enhanced_path != tmp_path:
+            os.unlink(tmp_path)
+            tmp_path = enhanced_path
+
         if engine == "google":
             igbo_text = transcribe_google_stt(tmp_path).strip()
         else:
@@ -194,6 +240,11 @@ async def live_translate(
         tmp_path = tmp.name
 
     try:
+        enhanced_path = purify_audio(tmp_path)
+        if enhanced_path != tmp_path:
+            os.unlink(tmp_path)
+            tmp_path = enhanced_path
+
         # Step 1: Transcription
         if stt_engine == "google":
             igbo_text = transcribe_google_stt(tmp_path).strip()

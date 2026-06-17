@@ -13,6 +13,9 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Download DeepFilterNet model to pre-package it in the image
+RUN python -c "from df.enhance import init_df; init_df()"
+
 # Copy the rest of the application
 COPY . .
 

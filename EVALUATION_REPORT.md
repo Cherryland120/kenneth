@@ -39,6 +39,17 @@ The Text-to-Text translation pipeline exhibited a BLEU score of 9.49 and an aver
 * **Latency Analysis:** While hosted on a GPU endpoint, the 54-second average latency suggests that the MarianMT model experienced significant overhead. This could be due to endpoint cold starts, network routing delays between Railway and the Hugging Face GPU, or the inherently slower, token-by-token generation process of the transformer architecture.
 * **BLEU Score Analysis:** The BLEU score calculates exact n-gram overlaps. As seen in the detailed results, the model often predicted semantically valid but structurally different sentences (e.g., *Ground Truth:* "Daddy bought me an aeroplane yesterday." vs *Prediction:* "Father bought when the upper price was high."). The model struggles with exact context but demonstrates an understanding of the individual words.
 
+### 4.3 Training Results (Igbo-to-English)
+The following table details the Marian Igbo-to-English text-to-text training progress:
+
+| Epoch | Training Loss | Validation Loss | Bleu      |
+|-------|---------------|-----------------|-----------|
+| 1     | 2.284508      | 2.124338        | 29.870000 |
+| 2     | 1.762001      | 1.972213        | 31.170000 |
+| 3     | 1.455368      | 1.909100        | 32.910000 |
+| 4     | 1.300616      | 1.899444        | 33.490000 |
+| 5     | 1.140122      | 1.895280        | 33.560000 |
+
 ---
 
 ## 5. Detailed Breakdown per Audio File

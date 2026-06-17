@@ -66,9 +66,9 @@ async def query_hf_endpoint(audio_path: str, task: str = "transcribe") -> dict:
 import speech_recognition as sr
 from pydub import AudioSegment
 
-def transcribe_google_stt(audio_path: str) -> str:
+def transcribe_google_stt(audio_path: str, language: str = "ig-NG") -> str:
     """Fallback STT engine using Google's Web Speech API."""
-    print("Using Google Speech Recognition as backup...")
+    print(f"Using Google Speech Recognition as backup ({language})...")
     wav_path = audio_path + ".wav"
     try:
         audio = AudioSegment.from_file(audio_path)
@@ -77,7 +77,7 @@ def transcribe_google_stt(audio_path: str) -> str:
         r = sr.Recognizer()
         with sr.AudioFile(wav_path) as source:
             audio_data = r.record(source)
-        return r.recognize_google(audio_data, language="ig-NG")
+        return r.recognize_google(audio_data, language=language)
     except sr.UnknownValueError:
         print("Google STT could not understand audio")
         return ""
@@ -103,15 +103,15 @@ def translate_igbo_to_english(igbo_text: str, engine: str = "google") -> str:
 # ─── Existing endpoints ───────────────────────────────────────────────────────
 
 @app.post("/api/transcribe")
-async def transcribe_audio(file: UploadFile = File(...), engine: str = Form("custom")):
-    """Transcribes Igbo audio to Igbo text."""
+async def transcribe_audio(file: UploadFile = File(...), engine: str = Form("custom"), language: str = Form("ig-NG")):
+    """Transcribes audio to text."""
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
         temp_audio.write(await file.read())
         temp_audio_path = temp_audio.name
 
     try:
         if engine == "google":
-            text = transcribe_google_stt(temp_audio_path)
+            text = transcribe_google_stt(temp_audio_path, language=language)
         else:
             result = await query_hf_endpoint(temp_audio_path)
             text = result.get("text", "")

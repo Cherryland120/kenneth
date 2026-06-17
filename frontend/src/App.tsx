@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type AppMode = 'transcribe' | 'translate' | 'live' | 'text';
+type AppMode = 'transcribe' | 'translate' | 'live' | 'text' | 'en_to_ig_text' | 'en_to_ig_translate';
 type TranslationEngine = 'custom' | 'google';
 type TranscriptionEngine = 'custom' | 'google';
 
@@ -44,11 +44,15 @@ export default function App() {
   const [ttsBackendUrl, setTtsBackendUrl] = useState<string>(
     localStorage.getItem('ttsBackendUrl') || 'https://artistic-wonder-production-cf65.up.railway.app'
   );
+  const [enToIgBackendUrl, setEnToIgBackendUrl] = useState<string>(
+    localStorage.getItem('enToIgBackendUrl') || 'https://placeholder-en-ig-url.up.railway.app'
+  );
   const [showSettings, setShowSettings] = useState(false);
   const [tempUrl, setTempUrl] = useState(backendUrl);
   const [tempTranslationUrl, setTempTranslationUrl] = useState(translationBackendUrl);
   const [tempTranslationEngine, setTempTranslationEngine] = useState<TranslationEngine>(translationEngine);
   const [tempTtsUrl, setTempTtsUrl] = useState<string>(ttsBackendUrl);
+  const [tempEnToIgUrl, setTempEnToIgUrl] = useState<string>(enToIgBackendUrl);
 
   // ── global mode ──────────────────────────────────────────────────────────
   const [mode, setMode] = useState<AppMode>('transcribe');
@@ -158,6 +162,11 @@ export default function App() {
     setTtsBackendUrl(ttsU);
     localStorage.setItem('ttsBackendUrl', ttsU);
 
+    let etoiU = tempEnToIgUrl.trim().replace(/\/$/, '');
+    if (etoiU && !etoiU.startsWith('http')) etoiU = 'https://' + etoiU;
+    setEnToIgBackendUrl(etoiU);
+    localStorage.setItem('enToIgBackendUrl', etoiU);
+
     setShowSettings(false);
   };
 
@@ -201,39 +210,45 @@ export default function App() {
       const fd = new FormData();
       fd.append('file', audioBlob);
       fd.append('audio', audioBlob);
-      fd.append('engine', transcriptionEngine);
+      fd.append('engine', mode === 'en_to_ig_translate' ? 'google' : transcriptionEngine);
+      if (mode === 'en_to_ig_translate') {
+        fd.append('language', 'en-US');
+      }
 
-      setLoadingStep('Transcribing Igbo audio...');
+      setLoadingStep('Transcribing audio...');
       const sttRes = await fetch(`${backendUrl}/api/transcribe`, {
         method: 'POST', body: fd
       });
         if (!sttRes.ok) throw new Error('Speech-to-text backend not reachable');
         const sttData = await sttRes.json();
-      const igbo = sttData.text || '';
-      if (!igbo) { setError(sttData.error || 'No speech detected.'); return; }
+      const transcribed = sttData.text || '';
+      if (!transcribed) { setError(sttData.error || 'No speech detected.'); return; }
 
-      if (mode === 'transcribe') { setTranscription(igbo); return; }
+      if (mode === 'transcribe') { setTranscription(transcribed); return; }
 
-      setIgboText(igbo);
-      setLoadingStep('Translating to English...');
+      setIgboText(transcribed);
+      setLoadingStep('Translating...');
 
-      if (!translationBackendUrl) {
-        setTranscription(igbo);
+      const isEnToIg = mode === 'en_to_ig_translate';
+      const urlToUse = isEnToIg ? enToIgBackendUrl : translationBackendUrl;
+
+      if (!urlToUse) {
+        setTranscription(transcribed);
         setError('⚠️ Translation backend URL not configured. Add it in Settings.');
         return;
       }
 
-      const mtRes = await fetch(`${translationBackendUrl}/api/translate`, {
+      const mtRes = await fetch(`${urlToUse}/api/translate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: igbo, engine: translationEngine }),
+        body: JSON.stringify({ text: transcribed, engine: translationEngine }),
       });
       if (!mtRes.ok) throw new Error('Text-to-text backend not reachable');
       const mtData = await mtRes.json();
-      const english = mtData.translated_text || mtData.error || 'No translation received.';
-      setTranscription(english);
+      const translated = mtData.translated_text || mtData.error || 'No translation received.';
+      setTranscription(translated);
 
-      if (mtData.translated_text) {
+      if (mtData.translated_text && !isEnToIg) {
         playElevenLabsAudio(mtData.translated_text);
       }
     } catch (err: any) {
@@ -257,13 +272,15 @@ export default function App() {
 
   const handleProcessText = async () => {
     if (!textInput.trim()) { setError('Please enter some text to translate.'); return; }
-    if (!translationBackendUrl) { setError('Translation backend URL not configured in Settings.'); return; }
+    const isEnToIg = mode === 'en_to_ig_text';
+    const urlToUse = isEnToIg ? enToIgBackendUrl : translationBackendUrl;
+    if (!urlToUse) { setError('Translation backend URL not configured in Settings.'); return; }
 
     setIsLoading(true); setError(null); setTranscription(''); setIgboText(''); setCopied(false);
     setLoadingStep('Translating text...');
 
     try {
-      const res = await fetch(`${translationBackendUrl}/api/translate`, {
+      const res = await fetch(`${urlToUse}/api/translate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: textInput, engine: translationEngine })
@@ -275,7 +292,7 @@ export default function App() {
 
       setTranscription(data.translated_text);
       setIgboText(textInput);
-      if (data.translated_text) {
+      if (data.translated_text && !isEnToIg) {
         playElevenLabsAudio(data.translated_text);
       }
     } catch (e: any) {
@@ -430,7 +447,9 @@ export default function App() {
             {([
               { id: 'transcribe', label: 'Audio → Igbo Text' },
               { id: 'translate',  label: 'Audio → English Text' },
-              { id: 'text',       label: 'Text → English Text' },
+              { id: 'text',       label: 'Igbo Text → English Text' },
+              { id: 'en_to_ig_translate', label: 'English Audio → Igbo Text' },
+              { id: 'en_to_ig_text', label: 'English Text → Igbo Text' },
             ] as { id: AppMode; label: string }[]).map(({ id, label }) => (
               <button
                 key={id}
@@ -667,7 +686,7 @@ export default function App() {
                           <textarea
                             value={textInput}
                             onChange={(e) => setTextInput(e.target.value)}
-                            placeholder="Type Igbo text here..."
+                            placeholder={mode === 'en_to_ig_text' ? "Type English text here..." : "Type Igbo text here..."}
                             className="w-full h-40 p-4 border border-orange-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-500/50 resize-none bg-orange-50/50 text-slate-800"
                           />
                           <div className="flex gap-3 pt-2">
@@ -757,20 +776,24 @@ export default function App() {
                 <div className="bg-orange-500 rounded-[32px] shadow-xl p-8 flex flex-col relative text-white">
                   <div className="absolute top-0 right-0 p-4">
                     <span className="text-[10px] font-bold text-orange-200 uppercase tracking-widest">
-                      {mode === 'transcribe' ? 'Igbo Transcription' : 'English Translation'}
+                      {mode === 'transcribe' ? 'Igbo Transcription' : mode === 'en_to_ig_text' || mode === 'en_to_ig_translate' ? 'Igbo Translation' : 'English Translation'}
                     </span>
                   </div>
                   <div className="flex-1 mt-6 overflow-y-auto space-y-4">
-                    {(mode === 'translate' || mode === 'text') && igboText && (
+                    {(mode === 'translate' || mode === 'text' || mode === 'en_to_ig_text' || mode === 'en_to_ig_translate') && igboText && (
                       <div className="bg-orange-600/50 rounded-2xl p-4 border border-orange-400/30">
-                        <p className="text-[10px] font-bold text-orange-200 uppercase tracking-widest mb-2">Igbo (Input)</p>
+                        <p className="text-[10px] font-bold text-orange-200 uppercase tracking-widest mb-2">
+                          {mode === 'en_to_ig_text' || mode === 'en_to_ig_translate' ? 'English (Input)' : 'Igbo (Input)'}
+                        </p>
                         <p className="text-sm text-orange-100 leading-relaxed">{igboText}</p>
                       </div>
                     )}
                     {transcription ? (
                       <div>
-                        {(mode === 'translate' || mode === 'text') && igboText && (
-                          <p className="text-[10px] font-bold text-orange-200 uppercase tracking-widest mb-2">English (Translated)</p>
+                        {(mode === 'translate' || mode === 'text' || mode === 'en_to_ig_text' || mode === 'en_to_ig_translate') && igboText && (
+                          <p className="text-[10px] font-bold text-orange-200 uppercase tracking-widest mb-2">
+                            {mode === 'en_to_ig_text' || mode === 'en_to_ig_translate' ? 'Igbo (Translated)' : 'English (Translated)'}
+                          </p>
                         )}
                         <p className="text-xl md:text-2xl font-medium leading-relaxed whitespace-pre-wrap">{transcription}</p>
                       </div>
@@ -836,7 +859,15 @@ export default function App() {
                     placeholder="https://text-to-text.up.railway.app"
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-all"
                   />
-                  <p className="text-xs text-slate-500 mt-1 mb-4">Used for the batch Translate tab only.</p>
+                  <p className="text-xs text-slate-500 mt-1 mb-4">Used for the Igbo-to-English translation modes.</p>
+
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">📝 English-to-Igbo URL</label>
+                  <input
+                    type="text" value={tempEnToIgUrl} onChange={(e) => setTempEnToIgUrl(e.target.value)}
+                    placeholder="https://placeholder-en-ig-url.up.railway.app"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-all"
+                  />
+                  <p className="text-xs text-slate-500 mt-1 mb-4">Used for English-to-Igbo translation modes.</p>
 
                   <label className="block text-sm font-medium text-slate-300 mb-1.5">
                     ⚙️ Translation Engine <span className="text-xs text-slate-500">(applies to all modes)</span>
@@ -900,7 +931,7 @@ export default function App() {
         <div className="flex items-center gap-4 text-[10px] text-slate-500 font-mono">
           <span className="hidden md:block">Powered by Whisper v3 Igbo · MarianMT</span>
           <button
-            onClick={() => { setTempUrl(backendUrl); setTempTranslationUrl(translationBackendUrl); setTempTranslationEngine(translationEngine); setShowSettings(true); }}
+            onClick={() => { setTempUrl(backendUrl); setTempTranslationUrl(translationBackendUrl); setTempEnToIgUrl(enToIgBackendUrl); setTempTranslationEngine(translationEngine); setTempTtsUrl(ttsBackendUrl); setShowSettings(true); }}
             className="flex items-center gap-1.5 hover:text-orange-400 transition-colors"
           >
             <Settings className="w-3.5 h-3.5" />

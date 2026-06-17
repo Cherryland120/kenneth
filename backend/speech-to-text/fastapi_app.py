@@ -20,6 +20,24 @@ except Exception as e:
     print(f"Failed to load DeepFilterNet: {e}")
     df_model, df_state = None, None
 
+def convert_to_wav(input_path: str) -> str:
+    """
+    Convert any audio file (webm, mp4, ogg, etc.) to a proper WAV file
+    that DeepFilterNet and Google STT can read.
+    Returns the path to the new WAV file (caller must delete it).
+    """
+    from pydub import AudioSegment
+    try:
+        audio = AudioSegment.from_file(input_path)
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+            wav_path = tmp.name
+        audio.export(wav_path, format="wav")
+        return wav_path
+    except Exception as e:
+        print(f"Audio conversion error: {e} — using original file")
+        return input_path
+
+
 def purify_audio(audio_path: str) -> str:
     """Purifies audio using DeepFilterNet to remove noise."""
     if df_model is None or df_state is None:
@@ -136,28 +154,35 @@ def translate_igbo_to_english(igbo_text: str, engine: str = "google") -> str:
 @app.post("/api/transcribe")
 async def transcribe_audio(file: UploadFile = File(...), engine: str = Form("custom"), language: str = Form("ig-NG")):
     """Transcribes audio to text."""
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
+    # Save with .webm so pydub can detect the format correctly
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as temp_audio:
         temp_audio.write(await file.read())
-        temp_audio_path = temp_audio.name
+        raw_path = temp_audio.name
 
+    wav_path = None
     try:
-        enhanced_path = purify_audio(temp_audio_path)
-        if enhanced_path != temp_audio_path:
-            os.unlink(temp_audio_path)
-            temp_audio_path = enhanced_path
+        # Convert to real WAV before DeepFilterNet / Whisper / Google STT
+        wav_path = convert_to_wav(raw_path)
+        os.unlink(raw_path)
+
+        enhanced_path = purify_audio(wav_path)
+        if enhanced_path != wav_path:
+            os.unlink(wav_path)
+            wav_path = enhanced_path
 
         if engine == "google":
-            text = transcribe_google_stt(temp_audio_path, language=language)
+            text = transcribe_google_stt(wav_path, language=language)
         else:
-            result = await query_hf_endpoint(temp_audio_path)
+            result = await query_hf_endpoint(wav_path)
             text = result.get("text", "")
         return {"text": text}
     except Exception as e:
         print(f"Error: {e}")
         return {"error": "Failed to transcribe audio."}
     finally:
-        if os.path.exists(temp_audio_path):
-            os.unlink(temp_audio_path)
+        for p in [raw_path, wav_path]:
+            if p and os.path.exists(p):
+                os.unlink(p)
 
 
 @app.post("/api/translate")
@@ -195,29 +220,33 @@ async def live_transcribe(
     Live mode — transcribe only.
     Accepts a ~4s audio chunk, returns Igbo transcription text.
     """
-    suffix = ".webm"
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as tmp:
         tmp.write(await file.read())
-        tmp_path = tmp.name
+        raw_path = tmp.name
 
+    wav_path = None
     try:
-        enhanced_path = purify_audio(tmp_path)
-        if enhanced_path != tmp_path:
-            os.unlink(tmp_path)
-            tmp_path = enhanced_path
+        wav_path = convert_to_wav(raw_path)
+        os.unlink(raw_path)
+
+        enhanced_path = purify_audio(wav_path)
+        if enhanced_path != wav_path:
+            os.unlink(wav_path)
+            wav_path = enhanced_path
 
         if engine == "google":
-            igbo_text = transcribe_google_stt(tmp_path).strip()
+            igbo_text = transcribe_google_stt(wav_path).strip()
         else:
-            result = await query_hf_endpoint(tmp_path)
+            result = await query_hf_endpoint(wav_path)
             igbo_text = (result.get("text") or "").strip()
         return {"igbo_text": igbo_text, "chunk_id": chunk_id}
     except Exception as e:
         print(f"live_transcribe error (chunk {chunk_id}): {e}")
         return {"error": str(e), "chunk_id": chunk_id}
     finally:
-        if os.path.exists(tmp_path):
-            os.unlink(tmp_path)
+        for p in [raw_path, wav_path]:
+            if p and os.path.exists(p):
+                os.unlink(p)
 
 
 @app.post("/api/live-translate")
@@ -234,22 +263,25 @@ async def live_translate(
     Step 2: Translation Engine (MarianMT/Google) → English text.
     Returns { igbo_text, english_text, chunk_id, engine }.
     """
-    suffix = ".webm"
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as tmp:
         tmp.write(await file.read())
-        tmp_path = tmp.name
+        raw_path = tmp.name
 
+    wav_path = None
     try:
-        enhanced_path = purify_audio(tmp_path)
-        if enhanced_path != tmp_path:
-            os.unlink(tmp_path)
-            tmp_path = enhanced_path
+        wav_path = convert_to_wav(raw_path)
+        os.unlink(raw_path)
+
+        enhanced_path = purify_audio(wav_path)
+        if enhanced_path != wav_path:
+            os.unlink(wav_path)
+            wav_path = enhanced_path
 
         # Step 1: Transcription
         if stt_engine == "google":
-            igbo_text = transcribe_google_stt(tmp_path).strip()
+            igbo_text = transcribe_google_stt(wav_path).strip()
         else:
-            result = await query_hf_endpoint(tmp_path)
+            result = await query_hf_endpoint(wav_path)
             igbo_text = (result.get("text") or "").strip()
 
         if not igbo_text:
@@ -275,8 +307,9 @@ async def live_translate(
         print(f"live_translate error (chunk {chunk_id}): {e}")
         return {"error": str(e), "chunk_id": chunk_id}
     finally:
-        if os.path.exists(tmp_path):
-            os.unlink(tmp_path)
+        for p in [raw_path, wav_path]:
+            if p and os.path.exists(p):
+                os.unlink(p)
 
 
 @app.get("/health")

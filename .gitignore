@@ -15,3 +15,5 @@ venv/
 
 # ML Checkpoints
 checkpoint-*/
+*.safetensors
+*.bin

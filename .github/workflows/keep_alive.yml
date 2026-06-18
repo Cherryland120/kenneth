@@ -1,0 +1,23 @@
+name: Keep Railway Awake
+
+on:
+  schedule:
+    # Runs every 10 minutes from 10:00 UTC to 16:59 UTC (11:00 AM to 5:59 PM WAT)
+    - cron: '*/10 10-16 * * *'
+  workflow_dispatch: # Allows manual trigger
+
+jobs:
+  ping-services:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Speech-to-Text
+        run: curl -s -o /dev/null -w "%{http_code}" https://kenneth-production.up.railway.app/ || true
+
+      - name: Ping Igbo to English
+        run: curl -s -o /dev/null -w "%{http_code}" https://fearless-manifestation-production.up.railway.app/ || true
+
+      - name: Ping English to Igbo
+        run: curl -s -o /dev/null -w "%{http_code}" https://faithful-fascination-production-1ff5.up.railway.app/ || true
+
+      - name: Ping Text-to-Speech
+        run: curl -s -o /dev/null -w "%{http_code}" https://artistic-wonder-production-cf65.up.railway.app/ || true

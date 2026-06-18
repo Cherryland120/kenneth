@@ -2,11 +2,10 @@ from fastapi import FastAPI, UploadFile, File, Form, Request
 from fastapi.responses import JSONResponse, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 from deep_translator import GoogleTranslator
 import tempfile
 import os
-
-app = FastAPI()
 
 # ── Startup diagnostics ───────────────────────────────────────────────────────
 print("=== Speech-to-Text Service Starting ===")
@@ -14,18 +13,31 @@ print(f"PORT: {os.environ.get('PORT', '8000 (default)')}")
 print(f"HF_TOKEN set: {'yes' if os.environ.get('HF_TOKEN') else 'NO — inference will fail!'}")
 print(f"HF_ENDPOINT_URL: {os.environ.get('HF_ENDPOINT_URL', '(using hardcoded default)')}")
 
-# ── DeepFilterNet (Audio Purification) ─────────────────────────────────────────
-try:
-    from df.enhance import enhance, init_df, load_audio, save_audio
-    print("Loading DeepFilterNet model...")
-    df_model, df_state, _ = init_df()
-    print("DeepFilterNet model loaded.")
-except ImportError:
-    print("deepfilternet not installed. Audio purification will be disabled.")
-    df_model, df_state = None, None
-except Exception as e:
-    print(f"Failed to load DeepFilterNet: {e}")
-    df_model, df_state = None, None
+# ── DeepFilterNet (Audio Purification) ────────────────────────────────────────────────
+# These are set to None now and initialized in the lifespan event AFTER
+# uvicorn has already bound the port (prevents Railway health-check timeouts).
+df_model = None
+df_state = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Load heavy models after the server has bound its port."""
+    global df_model, df_state
+    print("Server is up and accepting connections. Loading DeepFilterNet...")
+    try:
+        from df.enhance import enhance, init_df, load_audio, save_audio
+        df_model, df_state, _ = init_df()
+        print("DeepFilterNet model loaded successfully.")
+    except ImportError:
+        print("deepfilternet not installed. Audio purification disabled.")
+    except Exception as e:
+        print(f"Failed to load DeepFilterNet: {e}. Audio purification disabled.")
+    yield
+    # Cleanup on shutdown (if needed)
+    print("=== Speech-to-Text Service Shutting Down ===")
+
+app = FastAPI(lifespan=lifespan)
+
 
 def convert_to_wav(input_path: str) -> str:
     """

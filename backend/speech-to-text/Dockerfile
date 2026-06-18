@@ -24,6 +24,7 @@ COPY . .
 # Expose the port Railway uses
 EXPOSE 8000
 
-# Use JSON array form (NOT shell form) so Railway's SIGTERM goes directly to uvicorn.
-# Shell form (sh -c "...") would intercept signals, causing graceful shutdown to fail.
-CMD ["sh", "-c", "uvicorn fastapi_app:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Run via Python directly so os.environ.get("PORT") handles the port — 
+# no shell needed, no $PORT expansion issues.
+CMD ["python", "fastapi_app.py"]
+

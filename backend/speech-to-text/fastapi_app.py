@@ -1,6 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, Form, Request
 from fastapi.responses import JSONResponse, Response
 from starlette.middleware.base import BaseHTTPMiddleware
+from fastapi.middleware.cors import CORSMiddleware
 from deep_translator import GoogleTranslator
 import tempfile
 import os
@@ -57,30 +58,13 @@ def purify_audio(audio_path: str) -> str:
         return audio_path
 
 # ── CORS Middleware ───────────────────────────────────────────────────────────
-# Using a raw BaseHTTPMiddleware instead of CORSMiddleware because proxies like 
-# Cloudflare Tunnel intercept OPTIONS preflight requests and return a response
-# before it ever reaches CORSMiddleware or route handlers. This middleware
-# injects Access-Control headers into EVERY response at the lowest level.
-class CORSMiddlewareCustom(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        # Handle preflight OPTIONS immediately
-        if request.method == "OPTIONS":
-            return Response(
-                status_code=204,
-                headers={
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                    "Access-Control-Allow-Headers": "*",
-                    "Access-Control-Max-Age": "86400",
-                },
-            )
-        response = await call_next(request)
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "*"
-        return response
-
-app.add_middleware(CORSMiddlewareCustom)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ─── Whisper (Speech → Igbo text via HF Endpoint) ───────────────────────────
 import httpx

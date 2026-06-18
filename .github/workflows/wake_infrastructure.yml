@@ -1,0 +1,28 @@
+name: Wake Infrastructure
+
+on:
+  schedule:
+    # 10:00 UTC is 11:00 AM WAT (Nigerian Time)
+    - cron: '0 10 * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub UI
+
+jobs:
+  wake-services:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run Wake Script
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: python .github/scripts/manage_infrastructure.py --action wake

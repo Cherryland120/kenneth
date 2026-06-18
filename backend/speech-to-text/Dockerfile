@@ -23,4 +23,4 @@ COPY . .
 EXPOSE 8000
 
 # Start the FastAPI application (note we are using fastapi_app:app, NOT main:app)
-CMD ["uvicorn", "fastapi_app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD sh -c "uvicorn fastapi_app:app --host 0.0.0.0 --port ${PORT:-8000}"

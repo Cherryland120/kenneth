@@ -85,17 +85,17 @@ def manage_railway(action):
             
     print(f"Using Environment ID: {env_id}")
     
-    # 3. Scale instances
-    replicas = 1 if action == "wake" else 0
-    print(f"Scaling all services to {replicas} replicas...")
+    # 3. Sleep / Wake instances
+    is_sleep = True if action == "sleep" else False
+    print(f"Setting sleepApplication to {is_sleep} for all services...")
     
     mutation = """
-    mutation serviceInstanceUpdate($environmentId: String!, $serviceId: String!, $numReplicas: Int) {
+    mutation serviceInstanceUpdate($environmentId: String!, $serviceId: String!, $sleepApplication: Boolean) {
       serviceInstanceUpdate(
         environmentId: $environmentId,
         serviceId: $serviceId,
         input: {
-          numReplicas: $numReplicas
+          sleepApplication: $sleepApplication
         }
       )
     }
@@ -105,11 +105,11 @@ def manage_railway(action):
         variables = {
             "environmentId": env_id,
             "serviceId": sid,
-            "numReplicas": replicas
+            "sleepApplication": is_sleep
         }
         res = requests.post("https://backboard.railway.app/graphql/v2", json={"query": mutation, "variables": variables}, headers=headers)
         if res.status_code == 200 and 'errors' not in res.json():
-            print(f"✅ Scaled service {sid} to {replicas}.")
+            print(f"✅ Set sleepApplication={is_sleep} for {sid}.")
         else:
             print(f"❌ Failed to scale {sid}: {res.text}")
 

@@ -4,6 +4,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from deep_translator import GoogleTranslator
+import asyncio
 import tempfile
 import os
 
@@ -19,11 +20,9 @@ print(f"HF_ENDPOINT_URL: {os.environ.get('HF_ENDPOINT_URL', '(using hardcoded de
 df_model = None
 df_state = None
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Load heavy models after the server has bound its port."""
+def _load_deepfilternet_sync():
+    """Synchronous model load — run in a thread pool to avoid blocking the event loop."""
     global df_model, df_state
-    print("Server is up and accepting connections. Loading DeepFilterNet...")
     try:
         from df.enhance import enhance, init_df, load_audio, save_audio
         df_model, df_state, _ = init_df()
@@ -32,8 +31,19 @@ async def lifespan(app: FastAPI):
         print("deepfilternet not installed. Audio purification disabled.")
     except Exception as e:
         print(f"Failed to load DeepFilterNet: {e}. Audio purification disabled.")
-    yield
-    # Cleanup on shutdown (if needed)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    IMPORTANT: yield happens FIRST so the server starts accepting requests immediately.
+    DeepFilterNet loads in a background thread — it will be available once done,
+    but /health and all routes respond right away without waiting for it.
+    """
+    print("=== Server accepting connections. DeepFilterNet loading in background... ===")
+    # Fire-and-forget: load the model without blocking startup
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(None, _load_deepfilternet_sync)
+    yield  # ← Server is live HERE. Health check will pass from this point.
     print("=== Speech-to-Text Service Shutting Down ===")
 
 app = FastAPI(lifespan=lifespan)

@@ -24,5 +24,6 @@ COPY . .
 # Expose the port Railway uses
 EXPOSE 8000
 
-# Start the FastAPI application (note we are using fastapi_app:app, NOT main:app)
-CMD sh -c "uvicorn fastapi_app:app --host 0.0.0.0 --port ${PORT:-8000}"
+# Use JSON array form (NOT shell form) so Railway's SIGTERM goes directly to uvicorn.
+# Shell form (sh -c "...") would intercept signals, causing graceful shutdown to fail.
+CMD ["sh", "-c", "uvicorn fastapi_app:app --host 0.0.0.0 --port ${PORT:-8000}"]

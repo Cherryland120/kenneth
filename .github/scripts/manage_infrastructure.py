@@ -101,17 +101,35 @@ def manage_railway(action):
     }
     """
     
+    import time
     for sid in RAILWAY_SERVICES:
         variables = {
             "environmentId": env_id,
             "serviceId": sid,
             "sleepApplication": is_sleep
         }
-        res = requests.post("https://backboard.railway.app/graphql/v2", json={"query": mutation, "variables": variables}, headers=headers)
-        if res.status_code == 200 and 'errors' not in res.json():
-            print(f"✅ Set sleepApplication={is_sleep} for {sid}.")
-        else:
-            print(f"❌ Failed to scale {sid}: {res.text}")
+        
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                res = requests.post("https://backboard.railway.app/graphql/v2", json={"query": mutation, "variables": variables}, headers=headers)
+                
+                # Railway's load balancer sometimes returns 502/503 text instead of JSON on transient errors
+                if res.status_code in [502, 503] or "upstream connect error" in res.text:
+                    raise Exception(f"Transient Railway API error: {res.text}")
+                    
+                if res.status_code == 200 and 'errors' not in res.json():
+                    print(f"✅ Set sleepApplication={is_sleep} for {sid}.")
+                    break
+                else:
+                    print(f"❌ Failed to scale {sid}: {res.text}")
+                    break
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    print(f"⚠️ Network error for {sid}: {str(e)}. Retrying in 2 seconds...")
+                    time.sleep(2)
+                else:
+                    print(f"❌ Failed to scale {sid} after {max_retries} attempts: {str(e)}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

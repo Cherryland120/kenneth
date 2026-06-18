@@ -8,6 +8,12 @@ import os
 
 app = FastAPI()
 
+# ── Startup diagnostics ───────────────────────────────────────────────────────
+print("=== Speech-to-Text Service Starting ===")
+print(f"PORT: {os.environ.get('PORT', '8000 (default)')}")
+print(f"HF_TOKEN set: {'yes' if os.environ.get('HF_TOKEN') else 'NO — inference will fail!'}")
+print(f"HF_ENDPOINT_URL: {os.environ.get('HF_ENDPOINT_URL', '(using hardcoded default)')}")
+
 # ── DeepFilterNet (Audio Purification) ─────────────────────────────────────────
 try:
     from df.enhance import enhance, init_df, load_audio, save_audio
@@ -58,9 +64,17 @@ def purify_audio(audio_path: str) -> str:
         return audio_path
 
 # ── CORS Middleware ───────────────────────────────────────────────────────────
+# NOTE: You cannot use allow_origins=["*"] with allow_credentials=True.
+# Browsers block this combination. Use explicit origins instead.
+ALLOWED_ORIGINS = [
+    "https://kenneth-ten.vercel.app",
+    "http://localhost:3000",
+    "http://localhost:5173",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

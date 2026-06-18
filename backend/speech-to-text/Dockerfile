@@ -13,8 +13,10 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Download DeepFilterNet model to pre-package it in the image
-RUN python -c "from df.enhance import init_df; init_df()"
+# Download DeepFilterNet model to pre-package it in the image.
+# Use || true so a network/build failure here doesn't block the entire deploy.
+# The app handles a missing model gracefully at runtime (audio purification is disabled).
+RUN python -c "from df.enhance import init_df; init_df()" || true
 
 # Copy the rest of the application
 COPY . .

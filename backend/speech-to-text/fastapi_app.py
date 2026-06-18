@@ -86,18 +86,10 @@ def purify_audio(audio_path: str) -> str:
         return audio_path
 
 # ── CORS Middleware ───────────────────────────────────────────────────────────
-# NOTE: You cannot use allow_origins=["*"] with allow_credentials=True.
-# Browsers block this combination. Use explicit origins instead.
-ALLOWED_ORIGINS = [
-    "https://kenneth-ten.vercel.app",
-    "http://localhost:3000",
-    "http://localhost:5173",
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
